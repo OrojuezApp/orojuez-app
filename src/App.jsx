@@ -1,372 +1,426 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Camera, MapPin, User, Lock, LogOut, Plus, Users, 
-  LayoutDashboard, Map as MapIcon, X, Eye, Trash2, 
-  Edit3, Save, Loader2, RefreshCw, Smartphone
+  Camera, 
+  Database, 
+  Layout, 
+  Users, 
+  FileText, 
+  LogOut, 
+  AlertTriangle, 
+  CheckCircle, 
+  Search, 
+  Download,
+  Eye,
+  Calendar,
+  MapPin
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN DE CONEXIÓN REAL ---
+// CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const OroJuezApp = () => {
+  // ESTADOS GENERALES
+  const [view, setView] = useState('login');
+  const [user, setUser] = useState(null);
   const [dbStatus, setDbStatus] = useState('connecting');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState('reportes'); 
-  const [userEmail, setUserEmail] = useState('');
-  const [role, setRole] = useState('');
-  const [loading, setLoading] = useState(false);
+  
+  // ESTADOS PARA CAPTURA
+  const [streaming, setStreaming] = useState(false);
+  const [photo, setPhoto] = useState(null);
+  const [pesoOCR, setPesoOCR] = useState(null);
+  const [pesoManual, setPesoManual] = useState('');
+  const [observacion, setObservacion] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // --- ESTADOS DE DATOS REALES ---
+  // ESTADOS PARA REPORTES Y FILTROS
+  const [reportes, setReportes] = useState([]);
   const [sitios, setSitios] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [records, setRecords] = useState([]);
+  const [filtroSitio, setFiltroSitio] = useState('Todos');
+  const [filtroUsuario, setFiltroUsuario] = useState('Todos');
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
 
-  // --- MODALES Y FORMULARIOS ---
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [showSitioModal, setShowSitioModal] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-
-  // LÓGICA DE CÁMARA
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // --- CARGA INICIAL DESDE LA BASE DE DATOS ---
   useEffect(() => {
-    fetchData();
+    checkConnection();
+    cargarDatosIniciales();
   }, []);
 
-  const fetchData = async () => {
-    setDbStatus('connecting');
+  const checkConnection = async () => {
     try {
-      const { data: s } = await supabase.from('sitios').select('*').order('nombre');
-      const { data: u } = await supabase.from('perfiles_usuarios').select('*');
-      const { data: r } = await supabase.from('reportes_pesaje').select('*').order('fecha', { ascending: false });
-      
-      setSitios(s || []);
-      setUsuarios(u || []);
-      setRecords(r || []);
+      const { data, error } = await supabase.from('sitios').select('count', { count: 'exact', head: true });
+      if (error) throw error;
       setDbStatus('online');
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
       setDbStatus('offline');
     }
   };
 
-  // --- GESTIÓN DE SITIOS (CRUD REAL) ---
-  const handleSaveSitio = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const nombre = e.target.nombre.value;
-    const ubicacion = e.target.ubicacion.value;
-
-    if (editingItem) {
-      await supabase.from('sitios').update({ nombre, ubicacion }).eq('id', editingItem.id);
-    } else {
-      await supabase.from('sitios').insert([{ nombre, ubicacion }]);
-    }
-
-    await fetchData();
-    setShowSitioModal(false);
-    setEditingItem(null);
-    setLoading(false);
+  const cargarDatosIniciales = async () => {
+    const { data: s } = await supabase.from('sitios').select('*');
+    const { data: u } = await supabase.from('perfiles_usuarios').select('*');
+    if (s) setSitios(s);
+    if (u) setUsuarios(u);
+    cargarReportes();
   };
 
-  const eliminarSitio = async (id) => {
-    if(window.confirm("¿Eliminar sitio? Esto desconectará a los operarios vinculados.")) {
-      await supabase.from('sitios').delete().eq('id', id);
-      fetchData();
-    }
+  const cargarReportes = async () => {
+    const { data, error } = await supabase
+      .from('reportes_pesaje')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setReportes(data);
   };
 
-  // --- GESTIÓN DE USUARIOS (VÍNCULO CON SITIO) ---
-  const handleSaveUsuario = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const email = e.target.email.value;
-    const sitio_id = e.target.sitio.value; // ID de la tabla sitios
-
-    if (editingItem) {
-      await supabase.from('perfiles_usuarios').update({ email, sitio_id }).eq('id', editingItem.id);
-    } else {
-      await supabase.from('perfiles_usuarios').insert([{ email, sitio_id, rol: 'OPERATIVO' }]);
-    }
-    
-    await fetchData();
-    setShowUserModal(false);
-    setEditingItem(null);
-    setLoading(false);
-  };
-
-  const eliminarUsuario = async (id) => {
-    if(window.confirm("¿Quitar acceso a este usuario?")) {
-      await supabase.from('perfiles_usuarios').delete().eq('id', id);
-      fetchData();
-    }
-  };
-
-  // --- LÓGICA DE CÁMARA Y CAPTURA ---
+  // LÓGICA DE CAPTURA
   const startCamera = async () => {
-    setShowCameraModal(true);
-    setTimeout(async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment', width: 1280 } 
-        });
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (err) { alert("Error al abrir cámara: " + err); }
-    }, 300);
+    setStreaming(true);
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    videoRef.current.srcObject = stream;
   };
 
-  const captureAndSave = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const pesoManual = e.target.pesoManual.value;
-
-    // Dibujar foto en el canvas
+  const takePhoto = () => {
     const context = canvasRef.current.getContext('2d');
     context.drawImage(videoRef.current, 0, 0, 640, 480);
-    const fotoBase64 = canvasRef.current.toDataURL('image/webp', 0.5);
+    const data = canvasRef.current.toDataURL('image/jpeg');
+    setPhoto(data);
+    setStreaming(false);
+    videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    
+    // Simulación de OCR
+    const pesoDetectado = Math.floor(Math.random() * (1200 - 800) + 800);
+    setPesoOCR(pesoDetectado);
+  };
 
-    // Obtener info del operario actual
-    const perfil = usuarios.find(u => u.email === userEmail);
-    const sitioNombre = perfil ? sitios.find(s => s.id === perfil.sitio_id)?.nombre : 'Admin';
+  const guardarPesaje = async () => {
+    if (!pesoManual) return alert("Ingrese el peso manual");
+    setIsSaving(true);
+    
+    const nuevoReporte = {
+      sitio_id: user.sitio_id,
+      nombre_sitio: user.nombre_sitio,
+      usuario_email: user.email,
+      nombre_usuario: user.nombre || user.email,
+      peso_ocr: pesoOCR,
+      peso_manual: parseFloat(pesoManual),
+      diferencia: parseFloat(pesoManual) - pesoOCR,
+      foto_url: photo,
+      observacion: observacion,
+      created_at: new Date().toISOString()
+    };
 
-    const { error } = await supabase.from('reportes_pesaje').insert([{
-      usuario_email: userEmail,
-      sitio_nombre: sitioNombre,
-      peso_manual: pesoManual,
-      peso_ocr: (parseFloat(pesoManual) * 0.99).toFixed(2), // Simulación de OCR
-      foto_data: fotoBase64,
-      coordenadas: 'GPS Activo'
-    }]);
-
+    const { error } = await supabase.from('reportes_pesaje').insert([nuevoReporte]);
+    
     if (!error) {
-      await fetchData();
-      setShowCameraModal(false);
-      if(videoRef.current.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-    }
-    setLoading(false);
-  };
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (userEmail === 'industria.orojuez@gmail.com') {
-      setRole('SUPER_ADMIN');
-      setIsAuthenticated(true);
+      alert("Registro guardado con éxito");
+      setPhoto(null);
+      setPesoManual('');
+      setObservacion('');
+      cargarReportes();
     } else {
-      const found = usuarios.find(u => u.email === userEmail);
-      if (found) {
-        setRole('OPERATIVO');
-        setIsAuthenticated(true);
-      } else {
-        alert("Usuario no autorizado en la base de datos.");
-      }
+      alert("Error al guardar: " + error.message);
     }
+    setIsSaving(false);
   };
 
-  if (!isAuthenticated) {
+  // EXPORTACIÓN (Implementación básica con Window Print para PDF y CSV para Excel)
+  const exportarCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,Fecha,Sitio,Usuario,Peso OCR,Peso Manual,Diferencia,Observacion\n";
+    reportesFiltrados.forEach(r => {
+      csvContent += `${new Date(r.created_at).toLocaleString()},${r.nombre_sitio},${r.nombre_usuario},${r.peso_ocr},${r.peso_manual},${r.diferencia},${r.observacion}\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Reporte_OroJuez.csv");
+    document.body.appendChild(link);
+    link.click();
+  };
+
+  // FILTROS
+  const reportesFiltrados = reportes.filter(r => {
+    const cumpleSitio = filtroSitio === 'Todos' || r.nombre_sitio === filtroSitio;
+    const cumpleUsuario = filtroUsuario === 'Todos' || r.nombre_usuario === filtroUsuario;
+    const fechaReporte = new Date(r.created_at);
+    const cumpleFechaInicio = !fechaInicio || fechaReporte >= new Date(fechaInicio);
+    const cumpleFechaFin = !fechaFin || fechaReporte <= new Date(fechaFin + 'T23:59:59');
+    return cumpleSitio && cumpleUsuario && cumpleFechaInicio && cumpleFechaFin;
+  });
+
+  const totalOCR = reportesFiltrados.reduce((acc, r) => acc + (r.peso_ocr || 0), 0);
+  const totalManual = reportesFiltrados.reduce((acc, r) => acc + (r.peso_manual || 0), 0);
+
+  // LOGIN
+  if (view === 'login') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-md border-t-[15px] border-blue-900">
-          <div className="text-center mb-8">
-            <div className="bg-blue-900 text-white w-20 h-20 flex items-center justify-center rounded-3xl font-black text-3xl mx-auto shadow-xl">OJ</div>
-            <h1 className="text-3xl font-black text-blue-900 mt-4 tracking-tighter uppercase leading-none">Oro Juez S.A.</h1>
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${dbStatus === 'online' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Servidor {dbStatus}</span>
+        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
+              <span className="text-white text-3xl font-black">OJ</span>
             </div>
+            <h1 className="text-2xl font-bold text-slate-800">ORO JUEZ S.A.</h1>
+            <p className="text-slate-500">Auditoría de Pesaje</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input type="email" placeholder="Email de Usuario" className="w-full border-2 p-4 rounded-2xl outline-none" onChange={(e) => setUserEmail(e.target.value)} required />
-            <input type="password" placeholder="Contraseña" className="w-full border-2 p-4 rounded-2xl outline-none" required />
-            <button className="w-full bg-blue-900 text-white font-black py-4 rounded-2xl uppercase shadow-lg active:scale-95 transition-all">Acceder</button>
-          </form>
+          <button 
+            onClick={() => {
+              setUser({ email: 'industria.orojuez@gmail.com', nombre: 'Admin Central', sitio_id: 1, nombre_sitio: 'Matriz' });
+              setView('dashboard');
+            }}
+            className="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+          >
+            Ingresar al Sistema
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-700">
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* SIDEBAR */}
-      <aside className="w-72 bg-slate-900 text-white flex flex-col p-8 sticky top-0 h-screen shadow-2xl">
-        <div className="mb-12 font-black text-2xl tracking-tighter italic text-blue-500">ORO JUEZ S.A.</div>
-        <nav className="space-y-2 flex-1">
-          <button onClick={() => setActiveTab('reportes')} className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all ${activeTab === 'reportes' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-400'}`}>
-            <LayoutDashboard size={20}/> Reportes
+      <div className="w-full md:w-64 bg-slate-900 text-white p-6 flex flex-col shadow-xl">
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center font-bold">OJ</div>
+          <div>
+            <h2 className="font-bold text-sm leading-tight">ORO JUEZ S.A.</h2>
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                {dbStatus === 'online' ? 'Servidor online' : 'Error DB'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <nav className="space-y-2 flex-grow">
+          <button onClick={() => setView('dashboard')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'dashboard' ? 'bg-amber-500 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+            <Camera size={20} /> <span className="font-medium">Capturar Peso</span>
           </button>
-          {role === 'SUPER_ADMIN' && (
-            <>
-              <button onClick={() => setActiveTab('usuarios')} className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all ${activeTab === 'usuarios' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-400'}`}>
-                <Users size={20}/> Usuarios
-              </button>
-              <button onClick={() => setActiveTab('sitios')} className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all ${activeTab === 'sitios' ? 'bg-blue-600 font-bold' : 'hover:bg-slate-800 text-slate-400'}`}>
-                <MapIcon size={20}/> Sitios
-              </button>
-            </>
-          )}
+          <button onClick={() => setView('reportes')} className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${view === 'reportes' ? 'bg-amber-500 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+            <FileText size={20} /> <span className="font-medium">Reportes</span>
+          </button>
         </nav>
-        <button onClick={() => setIsAuthenticated(false)} className="flex items-center gap-4 text-red-400 p-4 hover:bg-red-500/10 rounded-2xl font-bold"><LogOut size={20}/> Salir</button>
-      </aside>
+
+        <div className="pt-6 mt-6 border-t border-slate-800">
+          <button onClick={() => setView('login')} className="w-full flex items-center gap-3 p-3 text-slate-400 hover:text-red-400 transition-colors">
+            <LogOut size={20} /> <span className="font-medium">Cerrar Sesión</span>
+          </button>
+        </div>
+      </div>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 p-10">
-        <header className="flex justify-between items-center mb-10">
-          <div>
-            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">{activeTab}</h2>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Sincronización Cloud Activa</p>
-          </div>
-          <button onClick={startCamera} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs flex items-center gap-3 shadow-2xl hover:bg-blue-700 uppercase active:scale-95 transition-all">
-            <Camera size={20}/> Capturar Pesaje
-          </button>
-        </header>
+      <div className="flex-grow p-4 md:p-8 overflow-y-auto">
+        
+        {/* VISTA CAPTURA */}
+        {view === 'dashboard' && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Camera className="text-amber-500" /> Nueva Captura de Pesaje
+              </h2>
 
-        {/* --- TABLA DE REPORTES --- */}
-        {activeTab === 'reportes' && (
-          <div className="bg-white rounded-[40px] shadow-sm border overflow-hidden">
-            <table className="w-full text-left">
-              <thead className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-widest">
-                <tr>
-                  <th className="p-8">Fecha y Sitio</th>
-                  <th className="p-8">Evidencia</th>
-                  <th className="p-8 text-center">Peso (KG)</th>
-                  <th className="p-8 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {records.map(r => (
-                  <tr key={r.id} className="hover:bg-blue-50/20">
-                    <td className="p-8">
-                      <div className="font-black text-slate-800">{new Date(r.fecha).toLocaleString()}</div>
-                      <div className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{r.sitio_nombre}</div>
-                    </td>
-                    <td className="p-8">
-                      {r.foto_data && <img src={r.foto_data} className="w-32 h-20 object-cover rounded-2xl border-4 border-white shadow-lg" alt="Pesaje" />}
-                    </td>
-                    <td className="p-8 text-center">
-                      <div className="text-2xl font-black text-slate-800">{r.peso_manual}</div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">OCR: {r.peso_ocr}</div>
-                    </td>
-                    <td className="p-8 text-center">
-                      <span className="bg-green-100 text-green-600 px-4 py-2 rounded-full font-black text-[10px] uppercase border border-green-200">Auditado</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* --- GESTIÓN DE SITIOS --- */}
-        {activeTab === 'sitios' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {sitios.map(s => (
-              <div key={s.id} className="bg-white p-8 rounded-[40px] shadow-sm border hover:shadow-2xl transition-all relative group">
-                <div className="bg-blue-50 text-blue-600 w-16 h-16 rounded-3xl flex items-center justify-center mb-6 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                  <MapIcon size={28}/>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Cámara */}
+                <div className="space-y-4">
+                  <div className="aspect-video bg-slate-100 rounded-xl overflow-hidden border-2 border-dashed border-slate-300 flex items-center justify-center relative">
+                    {!streaming && !photo && (
+                      <button onClick={startCamera} className="flex flex-col items-center text-slate-400 hover:text-amber-500 transition-colors">
+                        <Camera size={48} strokeWidth={1} />
+                        <span className="font-medium mt-2">Activar Cámara</span>
+                      </button>
+                    )}
+                    {streaming && (
+                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    )}
+                    {photo && (
+                      <img src={photo} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <canvas ref={canvasRef} width="640" height="480" className="hidden" />
+                  
+                  {streaming && (
+                    <button onClick={takePhoto} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 shadow-lg transition-all">
+                      CAPTURAR FOTO DE BÁSCULA
+                    </button>
+                  )}
+                  {photo && (
+                    <button onClick={() => {setPhoto(null); setPesoOCR(null);}} className="w-full bg-slate-200 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-300 transition-all">
+                      TOMAR OTRA FOTO
+                    </button>
+                  )}
                 </div>
-                <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter mb-1">{s.nombre}</h4>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{s.ubicacion}</p>
-                <div className="absolute top-8 right-8 flex gap-2">
-                  <button onClick={() => { setEditingItem(s); setShowSitioModal(true); }} className="text-slate-300 hover:text-blue-600"><Edit3 size={18}/></button>
-                  <button onClick={() => eliminarSitio(s.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
+
+                {/* Formulario */}
+                <div className="space-y-5">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Peso Detectado (OCR)</label>
+                    <div className="text-4xl font-black text-slate-800 leading-none mt-1">
+                      {pesoOCR ? `${pesoOCR} kg` : '--'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Ingreso Manual de Peso</label>
+                    <input 
+                      type="number" 
+                      value={pesoManual}
+                      onChange={(e) => setPesoManual(e.target.value)}
+                      placeholder="Ingrese peso de báscula..."
+                      className={`w-full p-4 rounded-xl border-2 text-xl font-bold transition-all outline-none 
+                        ${pesoManual && parseFloat(pesoManual) < pesoOCR ? 'border-red-500 bg-red-50 text-red-600' : 'border-slate-200 focus:border-amber-500'}`}
+                    />
+                    {pesoManual && parseFloat(pesoManual) < pesoOCR && (
+                      <p className="text-red-500 text-xs mt-2 font-bold flex items-center gap-1">
+                        <AlertTriangle size={14} /> El peso manual es menor al de la foto
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Observaciones / Novedades</label>
+                    <textarea 
+                      value={observacion}
+                      onChange={(e) => setObservacion(e.target.value)}
+                      className="w-full p-4 rounded-xl border-2 border-slate-200 focus:border-amber-500 outline-none h-24"
+                      placeholder="Describa cualquier irregularidad..."
+                    ></textarea>
+                  </div>
+
+                  <button 
+                    disabled={!photo || !pesoManual || isSaving}
+                    onClick={guardarPesaje}
+                    className="w-full bg-amber-500 text-white py-4 rounded-xl font-black text-lg shadow-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-tight"
+                  >
+                    {isSaving ? 'Guardando...' : 'Registrar en Nube'}
+                  </button>
                 </div>
               </div>
-            ))}
-            <button onClick={() => { setEditingItem(null); setShowSitioModal(true); }} className="border-4 border-dashed rounded-[40px] p-8 flex flex-col items-center justify-center text-slate-300 hover:text-blue-500 hover:border-blue-500 transition-all">
-              <Plus size={48}/><span className="font-black uppercase tracking-widest text-xs mt-2">Nuevo Sitio</span>
-            </button>
-          </div>
-        )}
-
-        {/* --- GESTIÓN DE USUARIOS --- */}
-        {activeTab === 'usuarios' && (
-          <div className="bg-white rounded-[40px] shadow-sm border overflow-hidden">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
-                <tr><th className="p-8">Operario</th><th className="p-8">Sitio Vinculado</th><th className="p-8 text-right">Acciones</th></tr>
-              </thead>
-              <tbody className="divide-y">
-                {usuarios.map(u => (
-                  <tr key={u.id}>
-                    <td className="p-8 font-bold">{u.email}</td>
-                    <td className="p-8 uppercase text-xs font-black text-blue-600">
-                      {sitios.find(s => s.id === u.sitio_id)?.nombre || 'Sin Sitio'}
-                    </td>
-                    <td className="p-8 text-right">
-                      <button onClick={() => { setEditingItem(u); setShowUserModal(true); }} className="text-slate-300 hover:text-blue-600 mr-4"><Edit3 size={18}/></button>
-                      <button onClick={() => eliminarUsuario(u.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="p-8 bg-slate-50">
-              <button onClick={() => { setEditingItem(null); setShowUserModal(true); }} className="bg-blue-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Crear Nuevo Operario</button>
             </div>
           </div>
         )}
 
-        {/* --- MODAL SITIO --- */}
-        {showSitioModal && (
-          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-[40px] p-10 w-full max-w-md">
-              <h3 className="text-2xl font-black uppercase mb-6">{editingItem ? 'Editar Sitio' : 'Nuevo Sitio'}</h3>
-              <form onSubmit={handleSaveSitio} className="space-y-4">
-                <input name="nombre" defaultValue={editingItem?.nombre} placeholder="Nombre Planta" className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold" required />
-                <input name="ubicacion" defaultValue={editingItem?.ubicacion} placeholder="Ubicación" className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold" required />
-                <button className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl">Guardar</button>
-                <button type="button" onClick={() => setShowSitioModal(false)} className="w-full text-slate-400 text-xs font-bold uppercase mt-2">Cerrar</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* --- MODAL USUARIO --- */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-[40px] p-10 w-full max-w-md">
-              <h3 className="text-2xl font-black uppercase mb-6">Configurar Operario</h3>
-              <form onSubmit={handleSaveUsuario} className="space-y-4">
-                <input name="email" defaultValue={editingItem?.email} placeholder="Email" className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold" required />
-                <select name="sitio" defaultValue={editingItem?.sitio_id} className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none" required>
-                  <option value="">Seleccionar Sitio</option>
-                  {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                </select>
-                <button className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl">Guardar Acceso</button>
-                <button type="button" onClick={() => setShowUserModal(false)} className="w-full text-slate-400 text-xs font-bold uppercase mt-2">Cerrar</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* --- MODAL CÁMARA --- */}
-        {showCameraModal && (
-          <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl flex items-center justify-center z-[200] p-4">
-            <div className="bg-white rounded-[50px] p-8 w-full max-w-lg border-b-[15px] border-blue-600">
-              <h3 className="text-2xl font-black text-blue-900 uppercase mb-6 italic">Nuevo Reporte</h3>
-              <div className="bg-black rounded-3xl overflow-hidden aspect-video shadow-2xl mb-6">
-                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-              </div>
-              <canvas ref={canvasRef} width="640" height="480" className="hidden" />
-              <form onSubmit={captureAndSave} className="space-y-4">
-                <input name="pesoManual" type="number" step="0.01" placeholder="PESO EN KG" className="w-full bg-slate-50 p-6 rounded-3xl text-4xl font-black text-center text-blue-900 outline-none" required />
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest flex items-center justify-center gap-3">
-                  {loading ? <Loader2 className="animate-spin"/> : <Save size={20}/>} REGISTRAR EN NUBE
+        {/* VISTA REPORTES */}
+        {view === 'reportes' && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="text-amber-500" /> Historial de Auditoría
+              </h2>
+              <div className="flex gap-2">
+                <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold hover:bg-slate-700">
+                  <Download size={16} /> PDF
                 </button>
-                <button type="button" onClick={() => {
-                   setShowCameraModal(false);
-                   if(videoRef.current.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-                }} className="w-full text-slate-400 font-bold uppercase text-xs mt-2">Cancelar</button>
-              </form>
+                <button onClick={exportarCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold hover:bg-green-700">
+                  <Download size={16} /> EXCEL (CSV)
+                </button>
+              </div>
+            </div>
+
+            {/* FILTROS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Sitio</label>
+                <select value={filtroSitio} onChange={(e) => setFiltroSitio(e.target.value)} className="w-full p-2 bg-slate-50 rounded border text-sm">
+                  <option>Todos</option>
+                  {sitios.map(s => <option key={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Usuario</label>
+                <select value={filtroUsuario} onChange={(e) => setFiltroUsuario(e.target.value)} className="w-full p-2 bg-slate-50 rounded border text-sm">
+                  <option>Todos</option>
+                  {usuarios.map(u => <option key={u.id}>{u.nombre || u.email}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Desde</label>
+                <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} className="w-full p-2 bg-slate-50 rounded border text-sm" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Hasta</label>
+                <input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} className="w-full p-2 bg-slate-50 rounded border text-sm" />
+              </div>
+            </div>
+
+            {/* TABLA */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase">Fecha/Hora</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase">Sitio</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase">Auditor</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">OCR (kg)</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">Manual (kg)</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">Diferencia</th>
+                      <th className="p-4 text-[11px] font-bold text-slate-500 uppercase text-center">Foto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportesFiltrados.map((rep) => (
+                      <tr key={rep.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="p-4 text-sm text-slate-600">
+                          {new Date(rep.created_at).toLocaleString()}
+                        </td>
+                        <td className="p-4">
+                          <span className="text-sm font-bold text-slate-800">{rep.nombre_sitio}</span>
+                        </td>
+                        <td className="p-4 text-sm text-slate-600 italic">
+                          {rep.nombre_usuario}
+                        </td>
+                        <td className="p-4 text-center font-mono font-bold text-slate-400">{rep.peso_ocr}</td>
+                        <td className="p-4 text-center">
+                          <span className={`font-mono font-bold ${rep.peso_manual < rep.peso_ocr ? 'text-red-600' : 'text-slate-800'}`}>
+                            {rep.peso_manual}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className={`text-xs px-2 py-1 rounded-full font-bold ${rep.diferencia < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {rep.diferencia > 0 ? `+${rep.diferencia}` : rep.diferencia}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => {
+                              const win = window.open();
+                              win.document.write(`<img src="${rep.foto_url}" style="width:100%">`);
+                            }}
+                            className="text-amber-500 hover:text-amber-600 transition-colors"
+                          >
+                            <Eye size={20} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {/* FILA DE TOTALES */}
+                  <tfoot className="bg-slate-900 text-white">
+                    <tr>
+                      <td colSpan="3" className="p-4 font-bold text-right uppercase text-[10px] tracking-widest">Totales en Filtro:</td>
+                      <td className="p-4 text-center font-mono font-bold text-amber-400">{totalOCR} kg</td>
+                      <td className="p-4 text-center font-mono font-bold text-amber-400">{totalManual} kg</td>
+                      <td className="p-4 text-center font-mono font-bold">
+                        <span className={totalManual - totalOCR < 0 ? 'text-red-400' : 'text-green-400'}>
+                          {totalManual - totalOCR} kg
+                        </span>
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };
