@@ -30,6 +30,8 @@ const OroJuezApp = () => {
   const [observacion, setObservacion] = useState('');
 
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
+  
+  // Estado inicial con ROL incluido
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: '' });
 
   const [filtroCiudad, setFiltroCiudad] = useState('Todas las Ciudades');
@@ -83,7 +85,7 @@ const OroJuezApp = () => {
         nombre: nuevoUsuario.nombre,
         email: nuevoUsuario.email.toLowerCase().trim(),
         sitio_id: nuevoUsuario.sitio_id,
-        rol: nuevoUsuario.rol,
+        rol: nuevoUsuario.rol, // Capturando el rol del combo
         nombre_sitio: sitioRel?.nombre || '',
         ciudad: sitioRel?.ciudad || ''
       };
@@ -177,16 +179,12 @@ const OroJuezApp = () => {
     setLoading(false);
   };
 
-  // Lógica de filtrado por ROLES
   const reportesFiltrados = reportes.filter(r => {
-    // 1. Filtro por Rol: El operativo solo ve sus registros
+    // Admin y Auditor ven todo. Operativo solo lo suyo.
     const cumpleRol = user.rol === 'admin' || user.rol === 'auditor' || r.usuario_email === user.email;
-    // 2. Filtro por Ciudad
     const cumpleCiudad = filtroCiudad === 'Todas las Ciudades' || r.ciudad === filtroCiudad;
-    // 3. Filtro por Fecha
     const fechaR = new Date(r.created_at);
     const cumpleFecha = !fechaInicio || fechaR >= new Date(fechaInicio);
-    
     return cumpleRol && cumpleCiudad && cumpleFecha;
   });
 
@@ -212,7 +210,7 @@ const OroJuezApp = () => {
       <div className="navbar" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div style={{textAlign:'left'}}>
           <h2 style={{margin:0, fontSize:'0.9rem'}}>ORO JUEZ AUDITORÍA</h2>
-          <small>{user?.nombre} | <span style={{textTransform:'uppercase'}}>{user?.rol}</span></small>
+          <small>{user?.nombre} | <span style={{textTransform:'uppercase', fontWeight:'bold'}}>{user?.rol}</span></small>
         </div>
         <button onClick={() => setView('login')} style={{background:'none', border:'none', color:'white'}}><LogOut/></button>
       </div>
@@ -243,20 +241,20 @@ const OroJuezApp = () => {
                 )}
                 {streaming && <video ref={videoRef} autoPlay playsInline style={{width:'100%', borderRadius:'10px'}} />}
                 {photo && <img src={photo} style={{width:'100%', borderRadius:'10px'}} />}
-                {loading && <div style={{position:'absolute', color:'white', background:'rgba(0,0,0,0.7)', padding:'10px', borderRadius:'5px'}}>Leyendo peso...</div>}
+                {loading && <div style={{position:'absolute', color:'white', background:'rgba(0,0,0,0.7)', padding:'10px', borderRadius:'5px'}}>Analizando visor...</div>}
               </div>
-              {streaming && <button onClick={takePhoto} className="navbar" style={{width:'100%', marginTop:'10px', color:'white', border:'none', padding:'15px', fontWeight:'bold'}}>CAPTURAR PESO</button>}
-              {photo && <button onClick={() => {setPhoto(null); setPesoOCR(null);}} style={{width:'100%', marginTop:'10px', padding:'10px'}}>TOMAR OTRA FOTO</button>}
+              {streaming && <button onClick={takePhoto} className="navbar" style={{width:'100%', marginTop:'10px', color:'white', border:'none', padding:'15px', fontWeight:'bold'}}>TOMAR FOTO</button>}
+              {photo && <button onClick={() => {setPhoto(null); setPesoOCR(null);}} style={{width:'100%', marginTop:'10px', padding:'10px'}}>REPETIR FOTO</button>}
             </div>
 
             <div className="card">
               <div style={{background:'#fff3cd', padding:'15px', borderRadius:'10px', marginBottom:'10px'}}>
-                <small style={{fontWeight:'bold'}}>VALOR DETECTADO (OCR)</small>
+                <small style={{fontWeight:'bold'}}>PESO DETECTADO (OCR)</small>
                 <h2 style={{margin:0, fontSize:'2.5rem'}}>{pesoOCR || '--'} <small style={{fontSize:'1rem'}}>kg</small></h2>
               </div>
-              <label style={{textAlign:'left', display:'block', fontSize:'12px', fontWeight:'bold'}}>PESO CONFIRMADO MANUAL:</label>
-              <input type="number" value={pesoManual} onChange={e => setPesoManual(e.target.value)} placeholder="Ingrese peso exacto" style={{fontSize:'1.8rem', textAlign:'center', marginBottom:'10px'}} />
-              <textarea value={observacion} onChange={e => setObservacion(e.target.value)} placeholder="Comentarios adicionales..." style={{height:'80px'}}></textarea>
+              <label style={{textAlign:'left', display:'block', fontSize:'12px', fontWeight:'bold'}}>PESO MANUAL:</label>
+              <input type="number" value={pesoManual} onChange={e => setPesoManual(e.target.value)} placeholder="0.00" style={{fontSize:'1.8rem', textAlign:'center', marginBottom:'10px'}} />
+              <textarea value={observacion} onChange={e => setObservacion(e.target.value)} placeholder="Notas de la auditoría..."></textarea>
               <button disabled={!photo || !pesoManual || loading} onClick={guardarPesaje} className="navbar" style={{width:'100%', color:'white', border:'none', padding:'15px', fontWeight:'bold', marginTop:'10px', opacity:(!photo || !pesoManual)?0.5:1}}>
                 {loading ? 'PROCESANDO...' : 'GUARDAR AUDITORÍA'}
               </button>
@@ -281,7 +279,7 @@ const OroJuezApp = () => {
                     <th>PESO</th>
                     <th>DIF.</th>
                     <th>VER</th>
-                    {(user.rol === 'admin') && <th>ACC</th>}
+                    {user.rol === 'admin' && <th>ACC</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -296,7 +294,7 @@ const OroJuezApp = () => {
                         {r.diferencia.toFixed(2)}
                       </td>
                       <td><button onClick={() => window.open(r.foto_url)} style={{color:'#ffc107', background:'none', border:'none'}}><Eye/></button></td>
-                      {(user.rol === 'admin') && (
+                      {user.rol === 'admin' && (
                         <td><button onClick={async () => { if(confirm("¿Borrar?")) { await supabase.from('reportes_pesaje').delete().eq('id', r.id); cargarDatos(); } }} style={{color:'red', background:'none', border:'none'}}><Trash2 size={16}/></button></td>
                       )}
                     </tr>
@@ -310,9 +308,9 @@ const OroJuezApp = () => {
         {view === 'sitios' && (
           <div>
             <form onSubmit={handleGuardarSitio} className="card" style={{marginBottom:'15px'}}>
-              <input value={nuevoSitio.ciudad} onChange={e => setNuevoSitio({...nuevoSitio, ciudad: e.target.value})} placeholder="Ciudad (Ej: Quito)" required />
-              <input value={nuevoSitio.nombre} onChange={e => setNuevoSitio({...nuevoSitio, nombre: e.target.value})} placeholder="Nombre de Sede" required />
-              <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'12px', marginTop:'5px'}}>REGISTRAR SEDE</button>
+              <input value={nuevoSitio.ciudad} onChange={e => setNuevoSitio({...nuevoSitio, ciudad: e.target.value})} placeholder="Ciudad" required />
+              <input value={nuevoSitio.nombre} onChange={e => setNuevoSitio({...nuevoSitio, nombre: e.target.value})} placeholder="Nombre Sede" required />
+              <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'12px', marginTop:'5px'}}>GUARDAR SEDE</button>
             </form>
             {sitios.map(s => (
               <div key={s.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', padding:'10px'}}>
@@ -328,17 +326,21 @@ const OroJuezApp = () => {
             <form onSubmit={handleGuardarUsuario} className="card" style={{marginBottom:'15px'}}>
               <input value={nuevoUsuario.nombre} onChange={e => setNuevoUsuario({...nuevoUsuario, nombre: e.target.value})} placeholder="Nombre Auditor" required />
               <input value={nuevoUsuario.email} onChange={e => setNuevoUsuario({...nuevoUsuario, email: e.target.value})} placeholder="Email Corporativo" required />
+              
+              {/* COMBO DE ROL - AQUÍ ESTÁ EL SELECTOR */}
               <select value={nuevoUsuario.rol} onChange={e => setNuevoUsuario({...nuevoUsuario, rol: e.target.value})} required>
                 <option value="">Seleccionar Rol...</option>
                 <option value="admin">Administrador</option>
                 <option value="auditor">Auditor (Ver Todo)</option>
                 <option value="operativo">Operativo (Solo lo suyo)</option>
               </select>
+
               <select value={nuevoUsuario.sitio_id} onChange={e => setNuevoUsuario({...nuevoUsuario, sitio_id: e.target.value})} required>
                 <option value="">Asignar Sede...</option>
                 {sitios.map(s => <option key={s.id} value={s.id}>{s.ciudad} | {s.nombre}</option>)}
               </select>
-              <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'12px', marginTop:'5px'}}>CREAR ACCESO</button>
+
+              <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'12px', marginTop:'5px'}}>CREAR USUARIO</button>
             </form>
             {usuarios.map(u => (
               <div key={u.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'5px', padding:'10px', textAlign:'left'}}>
@@ -353,7 +355,7 @@ const OroJuezApp = () => {
         )}
       </div>
       <canvas ref={canvasRef} style={{display:'none'}} width="640" height="480" />
-      <div style={{padding:'20px', fontSize:'10px', opacity:0.5}}>© 2026 ORO JUEZ S.A. | V.2.1-OCR</div>
+      <div style={{padding:'20px', fontSize:'10px', opacity:0.5}}>© 2026 ORO JUEZ S.A. | V.2.2</div>
     </div>
   );
 };
