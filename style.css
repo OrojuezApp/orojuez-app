@@ -1,0 +1,74 @@
+/* Configuración General */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+/* Contenedor Principal Adaptable */
+.container {
+    width: 90%; /* En móviles usará el 90% del ancho */
+    max-width: 1200px; /* En computadoras no crecerá más de esto */
+    margin: 20px auto;
+    overflow: hidden;
+}
+
+.navbar {
+    background: #333;
+    color: #fff;
+    padding: 1rem;
+    text-align: center;
+}
+
+.content-box {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Grid que cambia de columnas a filas automáticamente */
+.grid-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.card {
+    background: #e2e2e2;
+    padding: 20px;
+    text-align: center;
+    border-radius: 5px;
+}
+
+.footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 20px;
+    background: #333;
+    color: white;
+}
+
+/* AJUSTES PARA CELULAR (Media Query) */
+@media (max-width: 600px) {
+    .navbar h1 {
+        font-size: 1.5rem;
+    }
+    
+    .container {
+        width: 95%; /* Un poco más ancho en pantallas muy pequeñas */
+        margin: 10px auto;
+    }
+
+    .content-box {
+        padding: 15px;
+    }
+}
