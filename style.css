@@ -9,99 +9,72 @@ body {
     font-family: 'Segoe UI', Roboto, sans-serif;
     background-color: #f0f2f5;
     color: #1c1e21;
-    overflow-x: hidden; /* Evita scroll lateral */
+    overflow-x: hidden; /* Evita que la página se mueva hacia los lados */
 }
 
+/* Contenedor principal: En móvil será vertical, en PC horizontal */
 .container {
+    display: flex;
+    flex-direction: column; /* Menú arriba y contenido abajo en celular */
+    min-height: 100vh;
     width: 100%;
-    max-width: 100vw; /* Asegura que no se pase del ancho del celular */
-    margin: 0 auto;
-    padding: 10px;
 }
 
+/* Ajuste del Menú Lateral para que no robe espacio en el celular */
 .navbar {
     background: #1a1a1a;
     color: #ffffff;
     padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    text-align: center;
+    width: 100%; /* Ocupa todo el ancho arriba */
+    display: flex;
+    flex-wrap: wrap; /* Si hay muchos botones, saltan de línea */
+    gap: 10px;
+    justify-content: center;
 }
 
+/* El contenido ahora ocupará todo el ancho disponible */
 .content-box {
-    background: #ffffff;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-/* EL CORAZÓN DEL DISEÑO RESPONSIVO */
-.grid-layout {
-    display: flex;
-    flex-direction: column; /* Por defecto uno debajo de otro (Celular) */
-    gap: 15px;
-}
-
-.card {
-    background: #ffffff;
-    padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #e4e6eb;
-    width: 100%; /* Siempre ocupa el ancho disponible */
-}
-
-/* Botones de navegación superior */
-.nav-menu {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 15px;
-    overflow-x: auto; /* Permite deslizar si hay muchos botones */
-    padding-bottom: 5px;
-}
-
-.btn-nav {
     flex: 1;
-    min-width: 80px;
-    padding: 12px 5px;
-    border-radius: 8px;
-    font-size: 10px;
-    font-weight: bold;
-    border: 1px solid #ddd;
-    background: white;
-    cursor: pointer;
-}
-
-.btn-nav.active {
-    background: #333;
-    color: white;
-}
-
-/* Inputs gigantes para evitar zoom en móvil */
-input, select, textarea {
+    padding: 15px;
     width: 100%;
-    padding: 14px;
-    margin: 8px 0;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    font-size: 16px !important;
+    overflow-x: auto; /* Permite deslizar tablas largas sin romper el diseño */
+}
+
+/* Tablas responsivas: Evita que el texto se amontone como en tu imagen */
+table {
+    width: 100%;
+    min-width: 300px; /* Asegura un tamaño mínimo para lectura */
+    border-collapse: collapse;
+}
+
+td, th {
+    padding: 8px;
+    font-size: 12px; /* Letra un poco más pequeña para que quepa todo */
+    text-align: left;
 }
 
 /* Ajuste para PC (Pantallas grandes) */
 @media (min-width: 768px) {
-    .grid-layout {
-        flex-direction: row; /* Uno al lado del otro en PC */
+    .container {
+        flex-direction: row; /* Vuelve a ponerse de lado como en la imagen original */
     }
-    .card {
-        flex: 1;
+    
+    .navbar {
+        width: 250px; /* Ancho fijo solo en computadoras */
+        flex-direction: column;
+        justify-content: flex-start;
+        height: 100vh;
+        position: sticky;
+        top: 0;
     }
 }
 
-.footer {
-    text-align: center;
-    padding: 15px;
-    background: #1a1a1a;
-    color: white;
+/* Botones estilo tarjeta para el menú */
+.card {
+    background: #ffffff;
+    padding: 10px;
     border-radius: 8px;
-    margin-top: 15px;
-    font-size: 12px;
+    border: 1px solid #ddd;
+    margin-bottom: 5px;
+    cursor: pointer;
 }
