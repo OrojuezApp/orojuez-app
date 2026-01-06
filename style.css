@@ -1,80 +1,19 @@
-/* Configuración General */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: sans-serif; background-color: #f0f2f5; overflow-x: hidden; }
 
-body {
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    background-color: #f0f2f5;
-    color: #1c1e21;
-    overflow-x: hidden; /* Evita que la página se mueva hacia los lados */
-}
+.container { width: 100%; padding: 10px; display: flex; flex-direction: column; }
+.navbar { background: #1a1a1a; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 10px; }
+.content-box { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 100%; }
 
-/* Contenedor principal: En móvil será vertical, en PC horizontal */
-.container {
-    display: flex;
-    flex-direction: column; /* Menú arriba y contenido abajo en celular */
-    min-height: 100vh;
-    width: 100%;
-}
+/* Ajuste para Tablas en Celular */
+table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+th, td { padding: 10px; font-size: 12px; text-align: left; border-bottom: 1px solid #eee; }
 
-/* Ajuste del Menú Lateral para que no robe espacio en el celular */
-.navbar {
-    background: #1a1a1a;
-    color: #ffffff;
-    padding: 15px;
-    width: 100%; /* Ocupa todo el ancho arriba */
-    display: flex;
-    flex-wrap: wrap; /* Si hay muchos botones, saltan de línea */
-    gap: 10px;
-    justify-content: center;
-}
+/* Evita zoom en iPhone */
+input, select, textarea { width: 100%; padding: 12px; margin: 5px 0; font-size: 16px !important; border: 1px solid #ccc; border-radius: 8px; }
 
-/* El contenido ahora ocupará todo el ancho disponible */
-.content-box {
-    flex: 1;
-    padding: 15px;
-    width: 100%;
-    overflow-x: auto; /* Permite deslizar tablas largas sin romper el diseño */
-}
-
-/* Tablas responsivas: Evita que el texto se amontone como en tu imagen */
-table {
-    width: 100%;
-    min-width: 300px; /* Asegura un tamaño mínimo para lectura */
-    border-collapse: collapse;
-}
-
-td, th {
-    padding: 8px;
-    font-size: 12px; /* Letra un poco más pequeña para que quepa todo */
-    text-align: left;
-}
-
-/* Ajuste para PC (Pantallas grandes) */
+/* Diseño para PC */
 @media (min-width: 768px) {
-    .container {
-        flex-direction: row; /* Vuelve a ponerse de lado como en la imagen original */
-    }
-    
-    .navbar {
-        width: 250px; /* Ancho fijo solo en computadoras */
-        flex-direction: column;
-        justify-content: flex-start;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
-}
-
-/* Botones estilo tarjeta para el menú */
-.card {
-    background: #ffffff;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    margin-bottom: 5px;
-    cursor: pointer;
+    .grid-layout { display: flex; gap: 15px; }
+    .card { flex: 1; }
 }
