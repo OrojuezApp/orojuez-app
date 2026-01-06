@@ -6,149 +6,102 @@
 }
 
 body {
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.4;
+    font-family: 'Segoe UI', Roboto, sans-serif;
     background-color: #f0f2f5;
     color: #1c1e21;
-    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden; /* Evita scroll lateral */
 }
 
-/* Contenedor Principal Adaptable */
 .container {
     width: 100%;
-    max-width: 1200px;
+    max-width: 100vw; /* Asegura que no se pase del ancho del celular */
     margin: 0 auto;
     padding: 10px;
 }
 
-/* Cabecera Estilo App */
 .navbar {
     background: #1a1a1a;
     color: #ffffff;
     padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
     text-align: center;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
-.navbar h1 {
-    font-size: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-/* Cajas de Contenido */
 .content-box {
     background: #ffffff;
     padding: 15px;
-    border-radius: 15px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    margin-bottom: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* Grid Adaptativo (1 columna en móvil, 2 en PC) */
+/* EL CORAZÓN DEL DISEÑO RESPONSIVO */
 .grid-layout {
-    display: grid;
-    grid-template-columns: 1fr; /* Por defecto 1 columna para celular */
+    display: flex;
+    flex-direction: column; /* Por defecto uno debajo de otro (Celular) */
     gap: 15px;
 }
 
-/* Tarjetas de Interacción */
 .card {
     background: #ffffff;
     padding: 15px;
-    border-radius: 12px;
+    border-radius: 10px;
     border: 1px solid #e4e6eb;
-    text-align: center;
+    width: 100%; /* Siempre ocupa el ancho disponible */
 }
 
-/* Inputs y Botones Optimizados para Dedos */
-input, select, textarea {
-    width: 100%;
-    padding: 12px;
-    margin-top: 5px;
-    border: 2px solid #ddd;
+/* Botones de navegación superior */
+.nav-menu {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    overflow-x: auto; /* Permite deslizar si hay muchos botones */
+    padding-bottom: 5px;
+}
+
+.btn-nav {
+    flex: 1;
+    min-width: 80px;
+    padding: 12px 5px;
     border-radius: 8px;
-    font-size: 16px !important; /* Evita zoom molesto en iPhone */
-    outline: none;
-}
-
-input:focus {
-    border-color: #ffc107;
-}
-
-button {
-    cursor: pointer;
-    transition: transform 0.1s, opacity 0.2s;
-}
-
-button:active {
-    transform: scale(0.98);
-}
-
-/* Tablas Responsivas */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    border: 1px solid #ddd;
     background: white;
+    cursor: pointer;
 }
 
-th {
+.btn-nav.active {
     background: #333;
     color: white;
-    padding: 10px;
-    font-size: 11px;
-    text-transform: uppercase;
 }
 
-td {
-    padding: 12px 10px;
-    border-bottom: 1px solid #eee;
-    font-size: 13px;
+/* Inputs gigantes para evitar zoom en móvil */
+input, select, textarea {
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px !important;
 }
 
-/* Pie de Página */
+/* Ajuste para PC (Pantallas grandes) */
+@media (min-width: 768px) {
+    .grid-layout {
+        flex-direction: row; /* Uno al lado del otro en PC */
+    }
+    .card {
+        flex: 1;
+    }
+}
+
 .footer {
     text-align: center;
-    padding: 20px;
-    font-size: 12px;
-    color: #65676b;
+    padding: 15px;
     background: #1a1a1a;
     color: white;
-    border-radius: 12px;
-    margin-top: 10px;
-}
-
-/* --- AJUSTES PARA PANTALLAS GRANDES (PC/TABLET) --- */
-@media (min-width: 768px) {
-    .container {
-        padding: 20px;
-        width: 90%;
-    }
-
-    .grid-layout {
-        grid-template-columns: 1fr 1fr; /* 2 columnas en PC */
-    }
-
-    .navbar h1 {
-        font-size: 1.5rem;
-    }
-}
-
-/* --- AJUSTES ESPECÍFICOS PARA CELULAR --- */
-@media (max-width: 600px) {
-    .content-box {
-        padding: 10px;
-    }
-    
-    .card {
-        padding: 10px;
-    }
-
-    /* Ocultar columnas menos importantes en tablas de celular si es necesario */
-    .hide-mobile {
-        display: none;
-    }
+    border-radius: 8px;
+    margin-top: 15px;
+    font-size: 12px;
 }
