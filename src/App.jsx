@@ -17,17 +17,15 @@ const OroJuezApp = () => {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   
-  // Filtros
+  // Estados para formularios y filtros
   const [filtroSede, setFiltroSede] = useState('');
   const [filtroUsuario, setFiltroUsuario] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  // Gestión
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
 
-  // Captura
   const [photo, setPhoto] = useState(null);
   const [streaming, setStreaming] = useState(false);
   const [pesoManual, setPesoManual] = useState('');
@@ -50,7 +48,6 @@ const OroJuezApp = () => {
       if (user?.rol !== 'admin' && user?.rol !== 'superadmin') {
         query = query.eq('usuario_email', user?.email);
       }
-      
       const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
@@ -70,30 +67,32 @@ const OroJuezApp = () => {
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   const guardarControl = async () => {
-    if (!photo) return alert("Por favor, toma una foto.");
-    if (!pesoManual || pesoManual <= 0) return alert("Por favor, ingresa un peso válido.");
-    
+    if (!photo || !pesoManual) return alert("Falta foto o peso.");
     setLoading(true);
+    
+    // CORRECCIÓN DE ID PARA EVITAR ERROR UUID
+    const rawId = user.sitio_id;
+    const cleanId = (!isNaN(rawId) && rawId !== null && rawId !== "") ? parseInt(rawId) : rawId;
+
     try {
-      const datosAGuardar = {
-        sitio_id: user.sitio_id,
-        nombre_sitio: user.nombre_sitio || 'Sede no definida',
+      const { error } = await supabase.from('reportes_pesaje').insert([{
+        sitio_id: cleanId,
+        nombre_sitio: user.nombre_sitio || 'Sede',
         usuario_email: user.email,
         nombre_usuario: user.nombre,
         peso_manual: parseFloat(pesoManual),
         foto_url: photo,
         observaciones: observaciones || ''
-      };
+      }]);
 
-      const { error } = await supabase.from('reportes_pesaje').insert([datosAGuardar]);
       if (error) throw error;
 
-      alert("¡Registro guardado exitosamente!");
+      alert("¡Registro guardado con éxito!");
       setPhoto(null); setPesoManual(''); setObservaciones('');
       await cargarDatos();
       setView('historial');
-    } catch (error) {
-      alert("Error al guardar: " + error.message);
+    } catch (err) {
+      alert("Error al guardar: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -103,14 +102,11 @@ const OroJuezApp = () => {
     e.preventDefault();
     const email = e.target.email.value.trim().toLowerCase();
     const password = e.target.password.value.trim();
-    
     if (email === 'industria.orojuez@gmail.com' && password === 'admin123') {
-      setUser({ email, nombre: 'Super Admin', rol: 'admin', sitio_id: null }); 
-      setView('dashboard');
+      setUser({ email, nombre: 'Super Admin', rol: 'admin' }); setView('dashboard');
     } else {
       const { data } = await supabase.from('perfiles_usuarios').select('*').eq('email', email).eq('password', password).single();
-      if (data) { setUser(data); setView('dashboard'); } 
-      else alert("Credenciales incorrectas");
+      if (data) { setUser(data); setView('dashboard'); } else alert("Acceso denegado");
     }
   };
 
@@ -123,7 +119,7 @@ const OroJuezApp = () => {
       await supabase.from('perfiles_usuarios').insert([payload]);
 
     if(!error) {
-      alert(editMode ? "Usuario Actualizado" : "Usuario Creado");
+      alert(editMode ? "Usuario actualizado" : "Usuario creado");
       setEditMode(false);
       setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
       cargarDatos();
@@ -132,7 +128,7 @@ const OroJuezApp = () => {
 
   if (view === 'login') return (
     <div className="container" style={{padding:'40px 20px', maxWidth:'400px', margin:'auto'}}>
-      <div className="navbar"><h1>ORO JUEZ V6.3</h1></div>
+      <div className="navbar"><h1>ORO JUEZ V6.4</h1></div>
       <form onSubmit={handleLogin} style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'15px'}}>
         <input name="email" type="email" placeholder="Email" required />
         <input name="password" type="password" placeholder="Clave" required />
@@ -144,15 +140,15 @@ const OroJuezApp = () => {
   return (
     <div className="container">
       <div className="navbar" style={{display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
-        <span style={{fontSize:'12px'}}>{user?.nombre}</span>
+        <span style={{fontSize:'12px'}}>{user?.nombre} ({user?.rol})</span>
         <div style={{display:'flex', gap:'15px'}}>
-          <button onClick={cargarDatos} style={{background:'none', border:'none', color:'white'}}><RefreshCw size={18}/></button>
+          <button onClick={cargarDatos} style={{background:'none', border:'none', color:'white'}}><RefreshCw size={18} className={loading ? 'spin' : ''}/></button>
           <button onClick={() => setView('login')} style={{color:'white', background:'none', border:'none'}}><LogOut size={18}/></button>
         </div>
       </div>
 
       <div style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto', paddingBottom:'5px'}}>
-        <button onClick={() => {setView('dashboard'); setEditMode(false);}} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURA</button>
+        <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURA</button>
         <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='historial'?'2px solid #ffc107':'none'}}>HISTORIAL</button>
         {['admin', 'superadmin'].includes(user?.rol) && (
           <>
@@ -185,11 +181,11 @@ const OroJuezApp = () => {
               <div>
                 <img src={photo} style={{width:'100%', borderRadius:'10px'}} />
                 <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="0.00 kg" style={{fontSize:'2rem', textAlign:'center', width:'100%', margin:'10px 0'}} />
-                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Observaciones..." style={{width:'100%', marginBottom:'10px', padding:'10px'}} />
+                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Notas..." style={{width:'100%', marginBottom:'10px', padding:'10px'}} />
                 <button onClick={guardarControl} disabled={loading} className="navbar" style={{width:'100%', color:'white', padding:'15px', borderRadius:'8px', border:'none', fontWeight:'bold'}}>
                   {loading ? 'GUARDANDO...' : 'GUARDAR REGISTRO'}
                 </button>
-                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px'}}>Repetir foto</button>
+                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px'}}>Borrar y repetir</button>
               </div>
             )}
           </div>
@@ -220,7 +216,7 @@ const OroJuezApp = () => {
                     <option value="">Todas las Sedes</option>
                     {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                   </select>
-                  <button onClick={aplicarFiltros} className="navbar" style={{color:'white', border:'none'}}><Search size={14}/></button>
+                  <button onClick={aplicarFiltros} className="navbar" style={{color:'white', border:'none', borderRadius:'4px'}}><Search size={14}/></button>
                 </div>
              </div>
              <div className="card" style={{overflowX:'auto', padding:'5px'}}>
@@ -260,6 +256,7 @@ const OroJuezApp = () => {
               <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'5px'}}>
                 {editMode ? 'GUARDAR CAMBIOS' : 'CREAR'}
               </button>
+              {editMode && <button onClick={()=>{setEditMode(false); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'operador', password:''});}} style={{width:'100%', marginTop:'5px', background:'none', border:'none', fontSize:'12px'}}>Cancelar</button>}
             </form>
             <div className="card" style={{padding:'10px', overflowX:'auto'}}>
               <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
@@ -268,7 +265,7 @@ const OroJuezApp = () => {
                   {usuarios.map(u => (
                     <tr key={u.email} style={{borderBottom:'1px solid #eee'}}>
                       <td style={{padding:'5px'}}>{u.nombre}<br/><small>{u.nombre_sitio}</small></td>
-                      <td>
+                      <td style={{display:'flex', gap:'5px'}}>
                         <button onClick={()=>{setNuevoUsuario(u); setEditMode(true);}} style={{color:'blue', border:'none', background:'none'}}><Edit size={14}/></button>
                         <button onClick={async()=>{if(confirm('¿Eliminar?')){await supabase.from('perfiles_usuarios').delete().eq('email',u.email); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={14}/></button>
                       </td>
@@ -285,7 +282,7 @@ const OroJuezApp = () => {
             <form onSubmit={async (e) => {
               e.preventDefault();
               await supabase.from('sitios').insert([nuevoSitio]);
-              alert("Sede Creada"); cargarDatos(); setNuevoSitio({ nombre:'', ciudad:'' });
+              alert("Sede creada"); cargarDatos(); setNuevoSitio({ nombre:'', ciudad:'' });
             }} className="card" style={{padding:'15px', marginBottom:'20px'}}>
               <h4>Nueva Sede</h4>
               <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
