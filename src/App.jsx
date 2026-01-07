@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
-import { Camera, LogOut, Eye, Users, FileText, Download, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, Save, MapPin } from 'lucide-react';
+import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit } from 'lucide-react';
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
@@ -17,9 +17,7 @@ const OroJuezApp = () => {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   
-  // Estados para formularios y filtros
   const [filtroSede, setFiltroSede] = useState('');
-  const [filtroUsuario, setFiltroUsuario] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
@@ -58,7 +56,6 @@ const OroJuezApp = () => {
   const aplicarFiltros = () => {
     let temp = [...reportes];
     if (filtroSede) temp = temp.filter(r => String(r.sitio_id) === String(filtroSede));
-    if (filtroUsuario) temp = temp.filter(r => r.usuario_email === filtroUsuario);
     if (fechaInicio) temp = temp.filter(r => r.created_at >= fechaInicio);
     if (fechaFin) temp = temp.filter(r => r.created_at <= fechaFin + 'T23:59:59');
     setReportesFiltrados(temp);
@@ -67,17 +64,18 @@ const OroJuezApp = () => {
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   const guardarControl = async () => {
-    if (!photo || !pesoManual) return alert("Falta foto o peso.");
+    if (!photo || !pesoManual) return alert("Por favor toma la foto e ingresa el peso.");
     setLoading(true);
     
-    // CORRECCIÓN DE ID PARA EVITAR ERROR UUID
-    const rawId = user.sitio_id;
-    const cleanId = (!isNaN(rawId) && rawId !== null && rawId !== "") ? parseInt(rawId) : rawId;
+    // SOLUCIÓN AL ERROR UUID: Validamos si el sitio_id es un UUID real.
+    // Si es un número como "3", lo omitimos para que Supabase no rechace el guardado.
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const cleanId = uuidRegex.test(user.sitio_id) ? user.sitio_id : null;
 
     try {
       const { error } = await supabase.from('reportes_pesaje').insert([{
-        sitio_id: cleanId,
-        nombre_sitio: user.nombre_sitio || 'Sede',
+        sitio_id: cleanId, 
+        nombre_sitio: user.nombre_sitio || 'Sede Principal',
         usuario_email: user.email,
         nombre_usuario: user.nombre,
         peso_manual: parseFloat(pesoManual),
@@ -87,12 +85,12 @@ const OroJuezApp = () => {
 
       if (error) throw error;
 
-      alert("¡Registro guardado con éxito!");
+      alert("¡Registro guardado exitosamente!");
       setPhoto(null); setPesoManual(''); setObservaciones('');
       await cargarDatos();
       setView('historial');
     } catch (err) {
-      alert("Error al guardar: " + err.message);
+      alert("Error técnico: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -106,7 +104,7 @@ const OroJuezApp = () => {
       setUser({ email, nombre: 'Super Admin', rol: 'admin' }); setView('dashboard');
     } else {
       const { data } = await supabase.from('perfiles_usuarios').select('*').eq('email', email).eq('password', password).single();
-      if (data) { setUser(data); setView('dashboard'); } else alert("Acceso denegado");
+      if (data) { setUser(data); setView('dashboard'); } else alert("Usuario o clave incorrectos");
     }
   };
 
@@ -119,7 +117,7 @@ const OroJuezApp = () => {
       await supabase.from('perfiles_usuarios').insert([payload]);
 
     if(!error) {
-      alert(editMode ? "Usuario actualizado" : "Usuario creado");
+      alert("Usuario procesado");
       setEditMode(false);
       setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
       cargarDatos();
@@ -128,10 +126,10 @@ const OroJuezApp = () => {
 
   if (view === 'login') return (
     <div className="container" style={{padding:'40px 20px', maxWidth:'400px', margin:'auto'}}>
-      <div className="navbar"><h1>ORO JUEZ V6.4</h1></div>
+      <div className="navbar"><h1>ORO JUEZ V6.6</h1></div>
       <form onSubmit={handleLogin} style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'15px'}}>
-        <input name="email" type="email" placeholder="Email" required />
-        <input name="password" type="password" placeholder="Clave" required />
+        <input name="email" type="email" placeholder="Usuario (Email)" required />
+        <input name="password" type="password" placeholder="Contraseña" required />
         <button className="navbar" style={{color:'white', padding:'15px', borderRadius:'8px', border:'none', fontWeight:'bold', width:'100%'}}>ENTRAR</button>
       </form>
     </div>
@@ -179,13 +177,13 @@ const OroJuezApp = () => {
             )}
             {photo && (
               <div>
-                <img src={photo} style={{width:'100%', borderRadius:'10px'}} />
+                <img src={photo} style={{width:'100%', borderRadius:'10px'}} alt="Captura" />
                 <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="0.00 kg" style={{fontSize:'2rem', textAlign:'center', width:'100%', margin:'10px 0'}} />
-                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Notas..." style={{width:'100%', marginBottom:'10px', padding:'10px'}} />
+                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Notas u observaciones..." style={{width:'100%', marginBottom:'10px', padding:'10px'}} />
                 <button onClick={guardarControl} disabled={loading} className="navbar" style={{width:'100%', color:'white', padding:'15px', borderRadius:'8px', border:'none', fontWeight:'bold'}}>
                   {loading ? 'GUARDANDO...' : 'GUARDAR REGISTRO'}
                 </button>
-                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px'}}>Borrar y repetir</button>
+                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px'}}>Borrar y repetir foto</button>
               </div>
             )}
           </div>
@@ -193,7 +191,7 @@ const OroJuezApp = () => {
 
         {view === 'historial' && (
           <div style={{padding:'5px'}}>
-            {reportesFiltrados.map(r => (
+            {reportesFiltrados.length === 0 ? <p>No hay registros disponibles.</p> : reportesFiltrados.map(r => (
               <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'10px', textAlign:'left'}}>
                 <div>
                   <strong style={{fontSize:'12px'}}>{r.nombre_sitio}</strong><br/>
@@ -221,7 +219,7 @@ const OroJuezApp = () => {
              </div>
              <div className="card" style={{overflowX:'auto', padding:'5px'}}>
                <table style={{width:'100%', fontSize:'10px', borderCollapse:'collapse'}}>
-                  <thead><tr style={{background:'#eee'}}><th>Fecha/User</th><th>Sede</th><th>Peso</th><th>Ver</th></tr></thead>
+                  <thead><tr style={{background:'#eee'}}><th>Usuario</th><th>Sede</th><th>Peso</th><th>Ver</th></tr></thead>
                   <tbody>
                     {reportesFiltrados.map(r => (
                       <tr key={r.id} style={{borderBottom:'1px solid #eee'}}>
@@ -241,33 +239,32 @@ const OroJuezApp = () => {
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'20px'}}>
-              <h4>{editMode ? 'Editar Usuario' : 'Nuevo Usuario'}</h4>
-              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required />
+              <h4>{editMode ? 'Editar' : 'Nuevo Usuario'}</h4>
+              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre Completo" required />
               <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required disabled={editMode} />
-              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Clave" required />
+              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
               <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})}>
                 <option value="operador">Operador</option>
                 <option value="admin">Administrador</option>
               </select>
               <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required>
-                <option value="">Seleccionar Sede</option>
+                <option value="">Asignar Sede</option>
                 {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
               <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'5px'}}>
-                {editMode ? 'GUARDAR CAMBIOS' : 'CREAR'}
+                {editMode ? 'ACTUALIZAR' : 'REGISTRAR'}
               </button>
-              {editMode && <button onClick={()=>{setEditMode(false); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'operador', password:''});}} style={{width:'100%', marginTop:'5px', background:'none', border:'none', fontSize:'12px'}}>Cancelar</button>}
             </form>
             <div className="card" style={{padding:'10px', overflowX:'auto'}}>
               <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
-                <thead><tr style={{background:'#eee'}}><th>Nombre/Sede</th><th>Acción</th></tr></thead>
+                <thead><tr style={{background:'#eee'}}><th>Nombre / Sede</th><th>Acción</th></tr></thead>
                 <tbody>
                   {usuarios.map(u => (
                     <tr key={u.email} style={{borderBottom:'1px solid #eee'}}>
                       <td style={{padding:'5px'}}>{u.nombre}<br/><small>{u.nombre_sitio}</small></td>
                       <td style={{display:'flex', gap:'5px'}}>
                         <button onClick={()=>{setNuevoUsuario(u); setEditMode(true);}} style={{color:'blue', border:'none', background:'none'}}><Edit size={14}/></button>
-                        <button onClick={async()=>{if(confirm('¿Eliminar?')){await supabase.from('perfiles_usuarios').delete().eq('email',u.email); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={14}/></button>
+                        <button onClick={async()=>{if(confirm('¿Eliminar usuario?')){await supabase.from('perfiles_usuarios').delete().eq('email',u.email); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={14}/></button>
                       </td>
                     </tr>
                   ))}
@@ -281,22 +278,22 @@ const OroJuezApp = () => {
           <div style={{padding:'10px'}}>
             <form onSubmit={async (e) => {
               e.preventDefault();
-              await supabase.from('sitios').insert([nuevoSitio]);
-              alert("Sede creada"); cargarDatos(); setNuevoSitio({ nombre:'', ciudad:'' });
+              const { error } = await supabase.from('sitios').insert([nuevoSitio]);
+              if(!error) { alert("Sede creada"); cargarDatos(); setNuevoSitio({ nombre:'', ciudad:'' }); }
+              else alert(error.message);
             }} className="card" style={{padding:'15px', marginBottom:'20px'}}>
               <h4>Nueva Sede</h4>
-              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
+              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre de la Sede" required />
               <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
               <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'5px'}}>CREAR SEDE</button>
             </form>
-            <div className="card" style={{padding:'10px', overflowX:'auto'}}>
+            <div className="card" style={{padding:'10px'}}>
               <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
-                <thead><tr style={{background:'#eee'}}><th>Sede</th><th>Ciudad</th><th>X</th></tr></thead>
+                <thead><tr style={{background:'#eee'}}><th>Sede</th><th>Acción</th></tr></thead>
                 <tbody>
                   {sitios.map(s => (
                     <tr key={s.id} style={{borderBottom:'1px solid #eee'}}>
                       <td style={{padding:'5px'}}>{s.nombre}</td>
-                      <td>{s.ciudad}</td>
                       <td><button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id',s.id); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={14}/></button></td>
                     </tr>
                   ))}
