@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
-import { Camera, LogOut, Eye, Trash2, Users, MapPin, MessageSquare } from 'lucide-react';
+import { Camera, LogOut, Eye, Trash2, Users, MapPin, FileText, Download, Filter, Calendar, Search } from 'lucide-react';
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
@@ -13,13 +13,20 @@ const OroJuezApp = () => {
   const [sitios, setSitios] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [reportes, setReportes] = useState([]);
+  const [reportesFiltrados, setReportesFiltrados] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Estados Operativos
+  // Estados de Filtros
+  const [filtroSede, setFiltroSede] = useState('');
+  const [filtroUsuario, setFiltroUsuario] = useState('');
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
+
+  // Estados de Operación
   const [photo, setPhoto] = useState(null);
   const [streaming, setStreaming] = useState(false);
   const [pesoManual, setPesoManual] = useState('');
-  const [observacionesInput, setObservacionesInput] = useState(''); 
+  const [observaciones, setObservaciones] = useState('');
   
   // Estados Admin
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
@@ -28,52 +35,73 @@ const OroJuezApp = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => { if(user) cargarDatos(); }, [user]);
 
   const cargarDatos = async () => {
-    try {
-      const { data: s } = await supabase.from('sitios').select('*').order('ciudad');
-      const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('created_at', { ascending: false });
-      const { data: r } = await supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
-      if (s) setSitios(s);
-      if (u) setUsuarios(u);
-      if (r) setReportes(r);
-    } catch (e) { console.error("Error al cargar datos"); }
+    // 1. Cargar Sedes y Usuarios para los selectores de filtros
+    const { data: s } = await supabase.from('sitios').select('*').order('ciudad');
+    const { data: u } = await supabase.from('perfiles_usuarios').select('*');
+    if (s) setSitios(s);
+    if (u) setUsuarios(u);
+
+    // 2. Lógica de visibilidad de registros
+    let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
+    
+    // El operario solo ve lo suyo, admin/superadmin/auditor ven TODO
+    if (user.rol === 'operador') {
+      query = query.eq('usuario_email', user.email);
+    }
+    
+    const { data: r } = await query;
+    if (r) {
+      setReportes(r);
+      setReportesFiltrados(r);
+    }
   };
 
-  const takePhoto = () => {
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    context.drawImage(videoRef.current, 0, 0, 640, 480);
-    setPhoto(canvas.toDataURL('image/jpeg'));
-    setStreaming(false);
-    if (videoRef.current.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+  const aplicarFiltros = () => {
+    let temp = [...reportes];
+    if (filtroSede) temp = temp.filter(r => r.sitio_id === filtroSede);
+    if (filtroUsuario) temp = temp.filter(r => r.usuario_email === filtroUsuario);
+    if (fechaInicio) temp = temp.filter(r => new Date(r.created_at) >= new Date(fechaInicio + 'T00:00:00'));
+    if (fechaFin) temp = temp.filter(r => new Date(r.created_at) <= new Date(fechaFin + 'T23:59:59'));
+    setReportesFiltrados(temp);
+  };
+
+  const exportarExcel = () => {
+    const encabezados = "Fecha,Sede,Ciudad,Usuario,Peso(kg),Observaciones\n";
+    const filas = reportesFiltrados.map(r => 
+      `${new Date(r.created_at).toLocaleString().replace(',', ' ')},${r.nombre_sitio},${r.ciudad},${r.nombre_usuario},${r.peso_manual},${r.observaciones || ''}`
+    ).join("\n");
+    const blob = new Blob([encabezados + filas], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Reporte_OroJuez_${new Date().toISOString().slice(0,10)}.csv`);
+    link.click();
   };
 
   const guardarControl = async () => {
     if (!photo || !pesoManual) return alert("Falta foto o peso.");
     setLoading(true);
-    
-    // Enviamos SOLO las columnas que funcionan para evitar errores de caché
-    const datosParaEnviar = {
+    const { error } = await supabase.from('reportes_pesaje').insert([{
       sitio_id: user.sitio_id,
-      nombre_sitio: user.nombre_sitio || 'Sede Principal',
+      nombre_sitio: user.nombre_sitio || 'Sede',
       ciudad: user.ciudad || 'N/A',
       usuario_email: user.email,
       nombre_usuario: user.nombre,
       peso_manual: parseFloat(pesoManual),
-      foto_url: photo
-    };
-
-    const { error } = await supabase.from('reportes_pesaje').insert([datosParaEnviar]);
+      foto_url: photo,
+      observaciones: observaciones
+    }]);
 
     if (!error) {
-      alert("¡Registro guardado con éxito!");
-      setPhoto(null); setPesoManual(''); setObservacionesInput('');
+      alert("Registro guardado con éxito");
+      setPhoto(null); setPesoManual(''); setObservaciones('');
       await cargarDatos();
-      setView('reportes');
+      setView('historial');
     } else {
-      alert("Error detectado: " + error.message);
+      alert("Error: " + error.message);
     }
     setLoading(false);
   };
@@ -90,30 +118,11 @@ const OroJuezApp = () => {
     }
   };
 
-  const crearUsuario = async (e) => {
-    e.preventDefault();
-    const s = sitios.find(x => x.id === nuevoUsuario.sitio_id);
-    await supabase.from('perfiles_usuarios').insert([{ 
-      ...nuevoUsuario, 
-      nombre_sitio: s?.nombre || '', 
-      ciudad: s?.ciudad || '' 
-    }]);
-    setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
-    cargarDatos();
-  };
-
-  const crearSitio = async (e) => {
-    e.preventDefault();
-    await supabase.from('sitios').insert([nuevoSitio]);
-    setNuevoSitio({ nombre: '', ciudad: '' });
-    cargarDatos();
-  };
-
   if (view === 'login') return (
     <div className="container" style={{padding:'40px 20px', maxWidth:'400px', margin:'auto'}}>
-      <div className="navbar"><h1>ORO JUEZ V4.9</h1></div>
+      <div className="navbar"><h1>ORO JUEZ V5.1</h1></div>
       <form onSubmit={handleLogin} style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'15px'}}>
-        <input name="email" type="email" placeholder="Correo" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ccc'}} />
+        <input name="email" type="email" placeholder="Email" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ccc'}} />
         <input name="password" type="password" placeholder="Clave" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ccc'}} />
         <button className="navbar" style={{color:'white', border:'none', padding:'15px', borderRadius:'8px', fontWeight:'bold'}}>INGRESAR</button>
       </form>
@@ -123,17 +132,17 @@ const OroJuezApp = () => {
   return (
     <div className="container">
       <div className="navbar" style={{display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
-        <span style={{fontWeight:'bold'}}>{user.nombre}</span>
+        <span style={{fontWeight:'bold'}}>{user.nombre} ({user.rol})</span>
         <button onClick={() => setView('login')} style={{color:'white', background:'none', border:'none'}}><LogOut/></button>
       </div>
 
       <div style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto'}}>
-        <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:1, border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURAR</button>
-        <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:1, border:view==='reportes'?'2px solid #ffc107':'none'}}>HISTORIAL</button>
-        {user.rol === 'admin' && (
+        <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:1, border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURA</button>
+        <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:1, border:view==='historial'?'2px solid #ffc107':'none'}}>HISTORIAL</button>
+        {['admin', 'auditor', 'superadmin'].includes(user.rol) && (
           <>
+            <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:1, border:view==='reportes'?'2px solid #ffc107':'none'}}><FileText size={18}/></button>
             <button onClick={() => setView('usuarios')} className="card" style={{padding:'10px', border:view==='usuarios'?'2px solid #ffc107':'none'}}><Users size={18}/></button>
-            <button onClick={() => setView('sitios')} className="card" style={{padding:'10px', border:view==='sitios'?'2px solid #ffc107':'none'}}><MapPin size={18}/></button>
           </>
         )}
       </div>
@@ -147,76 +156,116 @@ const OroJuezApp = () => {
             {streaming && (
               <div>
                 <video ref={videoRef} autoPlay playsInline style={{width:'100%', borderRadius:'15px', border:'2px solid #000'}} />
-                <button onClick={takePhoto} className="navbar" style={{width:'100%', color:'white', padding:'15px', marginTop:'10px', borderRadius:'10px'}}>TOMAR FOTO</button>
+                <button onClick={() => {
+                    const canvas = canvasRef.current;
+                    canvas.getContext('2d').drawImage(videoRef.current, 0, 0, 640, 480);
+                    setPhoto(canvas.toDataURL('image/jpeg'));
+                    setStreaming(false);
+                    videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+                }} className="navbar" style={{width:'100%', color:'white', padding:'15px', marginTop:'10px', borderRadius:'10px'}}>TOMAR FOTO</button>
               </div>
             )}
             {photo && (
               <div>
                 <img src={photo} style={{width:'100%', borderRadius:'15px', border:'2px solid #28a745'}} />
                 <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="0.00 kg" style={{fontSize:'2.5rem', textAlign:'center', width:'100%', margin:'15px 0', border:'2px solid #ffc107', borderRadius:'10px'}} />
-                
-                <textarea 
-                  value={observacionesInput} 
-                  onChange={e=>setObservacionesInput(e.target.value)} 
-                  placeholder="Observaciones adicionales..." 
-                  style={{width:'100%', padding:'10px', borderRadius:'8px', border:'1px solid #ccc', marginBottom:'15px', minHeight:'60px'}}
-                />
-
-                <button onClick={guardarControl} disabled={loading} className="navbar" style={{width:'100%', color:'white', padding:'20px', borderRadius:'10px', fontWeight:'bold'}}>
-                  {loading ? 'PROCESANDO...' : 'GUARDAR REGISTRO'}
-                </button>
+                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Observaciones..." style={{width:'100%', padding:'10px', borderRadius:'8px', marginBottom:'10px'}} />
+                <button onClick={guardarControl} disabled={loading} className="navbar" style={{width:'100%', color:'white', padding:'20px', borderRadius:'10px', fontWeight:'bold'}}>GUARDAR REGISTRO</button>
                 <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', textDecoration:'underline'}}>Repetir</button>
               </div>
             )}
           </div>
         )}
 
+        {view === 'historial' && (
+          <div style={{padding:'10px'}}>
+            <h3 style={{marginBottom:'10px'}}>Historial de Pesajes</h3>
+            {reportesFiltrados.length === 0 ? <p>No hay registros encontrados.</p> : 
+              reportesFiltrados.map(r => (
+                <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', padding:'15px', textAlign:'left'}}>
+                  <div>
+                    <strong>{r.nombre_sitio}</strong><br/>
+                    <span style={{fontSize:'1.3rem', color:'#ffc107', fontWeight:'bold'}}>{r.peso_manual} kg</span><br/>
+                    <small style={{display:'block', opacity:0.8}}>{new Date(r.created_at).toLocaleString()}</small>
+                    {r.nombre_usuario && <small style={{fontSize:'10px'}}>Por: {r.nombre_usuario}</small>}
+                  </div>
+                  <button onClick={()=>window.open(r.foto_url)} className="navbar" style={{color:'white', border:'none', borderRadius:'8px', width:'45px', height:'45px', display:'flex', alignItems:'center', justifyContent:'center'}}><Eye size={20}/></button>
+                </div>
+              ))
+            }
+          </div>
+        )}
+
         {view === 'reportes' && (
           <div style={{padding:'10px'}}>
-            {reportes.map(r => (
-              <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', padding:'15px', textAlign:'left'}}>
-                <div>
-                  <strong>{r.nombre_sitio}</strong><br/>
-                  <span style={{fontSize:'1.3rem', color:'#ffc107', fontWeight:'bold'}}>{r.peso_manual} kg</span><br/>
-                  <small style={{opacity:0.8}}>{new Date(r.created_at).toLocaleString()}</small>
-                </div>
-                <button onClick={()=>window.open(r.foto_url)} style={{background:'none', border:'none', color:'#ffc107'}}><Eye size={24}/></button>
+            <div className="card" style={{padding:'15px', marginBottom:'20px', textAlign:'left'}}>
+              <h4><Filter size={16}/> Filtros de Reporte</h4>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginTop:'10px'}}>
+                <div><small>Inicio:</small><input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} /></div>
+                <div><small>Fin:</small><input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} /></div>
+                <select value={filtroSede} onChange={e=>setFiltroSede(e.target.value)}>
+                    <option value="">Todas las Sedes</option>
+                    {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+                <select value={filtroUsuario} onChange={e=>setFiltroUsuario(e.target.value)}>
+                    <option value="">Todos los Usuarios</option>
+                    {usuarios.map(u => <option key={u.email} value={u.email}>{u.nombre}</option>)}
+                </select>
               </div>
-            ))}
+              <button onClick={aplicarFiltros} className="navbar" style={{width:'100%', color:'white', marginTop:'15px', padding:'12px', borderRadius:'8px'}}><Search size={16}/> FILTRAR RESULTADOS</button>
+              <div style={{display:'flex', gap:'10px', marginTop:'10px'}}>
+                <button onClick={exportarExcel} style={{flex:1, padding:'10px', borderRadius:'8px', border:'1px solid #28a745', color:'#28a745', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}><Download size={16}/> EXCEL</button>
+                <button onClick={()=>window.print()} style={{flex:1, padding:'10px', borderRadius:'8px', border:'1px solid #007bff', color:'#007bff', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}><FileText size={16}/> PDF (Imprimir)</button>
+              </div>
+            </div>
+            
+            <div className="card" style={{overflowX:'auto', padding:'5px'}}>
+              <table style={{width:'100%', fontSize:'11px', textAlign:'left', borderCollapse:'collapse'}}>
+                <thead><tr style={{background:'#eee'}}><th style={{padding:'5px'}}>Fecha</th><th style={{padding:'5px'}}>Usuario</th><th style={{padding:'5px'}}>Sede</th><th style={{padding:'5px'}}>Peso</th></tr></thead>
+                <tbody>
+                    {reportesFiltrados.map(r => (
+                        <tr key={r.id} style={{borderBottom:'1px solid #eee'}}>
+                            <td style={{padding:'5px'}}>{new Date(r.created_at).toLocaleDateString()}</td>
+                            <td style={{padding:'5px'}}>{r.nombre_usuario}</td>
+                            <td style={{padding:'5px'}}>{r.nombre_sitio}</td>
+                            <td style={{padding:'5px'}}><strong>{r.peso_manual}kg</strong></td>
+                        </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
-            <form onSubmit={crearUsuario} className="card" style={{padding:'15px', marginBottom:'20px', textAlign:'left'}}>
-              <h4>Nuevo Operador</h4>
-              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required />
-              <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required />
-              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Clave" required />
-              <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required style={{width:'100%', padding:'10px', margin:'10px 0'}}>
-                <option value="">-- Sede --</option>
-                {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-              <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'12px', borderRadius:'8px'}}>GUARDAR</button>
+            <form onSubmit={async (e) => {
+                e.preventDefault();
+                const s = sitios.find(x => x.id === nuevoUsuario.sitio_id);
+                await supabase.from('perfiles_usuarios').insert([{ 
+                    ...nuevoUsuario, 
+                    nombre_sitio: s?.nombre || '', 
+                    ciudad: s?.ciudad || '' 
+                }]);
+                setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
+                cargarDatos();
+                alert("Usuario creado");
+            }} className="card" style={{padding:'15px', textAlign:'left'}}>
+                <h4>Crear Nuevo Usuario</h4>
+                <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre Completo" required />
+                <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Correo" required />
+                <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
+                <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})}>
+                    <option value="operador">Operador</option>
+                    <option value="admin">Administrador</option>
+                    <option value="auditor">Auditor</option>
+                </select>
+                <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required style={{width:'100%', padding:'10px', margin:'10px 0'}}>
+                    <option value="">Asignar a Sede...</option>
+                    {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+                <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'12px', borderRadius:'8px'}}>REGISTRAR USUARIO</button>
             </form>
-            {usuarios.map(u => (
-              <div key={u.id} className="card" style={{padding:'10px', marginBottom:'5px', display:'flex', justifyContent:'space-between'}}>
-                <span>{u.nombre} ({u.email})</span>
-                <button onClick={async()=>{if(confirm("¿Eliminar?")){await supabase.from('perfiles_usuarios').delete().eq('id', u.id); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={18}/></button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {view === 'sitios' && (
-          <div style={{padding:'10px'}}>
-            <form onSubmit={crearSitio} className="card" style={{padding:'15px', marginBottom:'20px', textAlign:'left'}}>
-              <h4>Nueva Sede</h4>
-              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
-              <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
-              <button type="submit" className="navbar" style={{color:'white', width:'100%', padding:'12px', borderRadius:'8px'}}>AÑADIR</button>
-            </form>
-            {sitios.map(s => <div key={s.id} className="card" style={{padding:'10px', marginBottom:'5px'}}><MapPin size={14} style={{display:'inline'}}/> {s.nombre} - {s.ciudad}</div>)}
           </div>
         )}
       </div>
