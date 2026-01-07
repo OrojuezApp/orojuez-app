@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Tesseract from 'tesseract.js';
 import './style.css'; 
-import { Camera, LogOut, Eye, Trash2 } from 'lucide-react';
+import { Camera, LogOut, Eye, Trash2, Lock, Mail, User } from 'lucide-react';
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
@@ -16,7 +16,8 @@ const OroJuezApp = () => {
   const [reportes, setReportes] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: '' });
+  // Estado para nuevo usuario incluyendo Password
+  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: '', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
   
   const [photo, setPhoto] = useState(null);
@@ -40,7 +41,9 @@ const OroJuezApp = () => {
 
   const handleGuardarUsuario = async (e) => {
     e.preventDefault();
-    if (!nuevoUsuario.rol) return alert("Debe seleccionar un ROL (Admin, Auditor u Operativo).");
+    if (!nuevoUsuario.rol || !nuevoUsuario.password) {
+        return alert("Debe asignar un ROL y una CLAVE al usuario.");
+    }
     setLoading(true);
     const sitioRel = sitios.find(s => s.id === nuevoUsuario.sitio_id);
     const { error } = await supabase.from('perfiles_usuarios').insert([{
@@ -48,10 +51,10 @@ const OroJuezApp = () => {
       nombre_sitio: sitioRel?.nombre || '',
       ciudad: sitioRel?.ciudad || ''
     }]);
-    if (error) alert("Error: " + error.message);
+    if (error) alert("Error al crear usuario: " + error.message);
     else {
-      alert("USUARIO CREADO CON ÉXITO");
-      setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: '' });
+      alert("USUARIO CREADO CON CLAVE");
+      setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: '', password: '' });
       await cargarDatos();
     }
     setLoading(false);
@@ -60,16 +63,26 @@ const OroJuezApp = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     const email = e.target.email.value.trim().toLowerCase();
-    if (email === 'industria.orojuez@gmail.com') {
+    const password = e.target.password.value.trim();
+
+    // Login Super Admin (Hardcoded)
+    if (email === 'industria.orojuez@gmail.com' && password === 'admin123') {
       setUser({ email, nombre: 'Super Admin', rol: 'admin' });
       setView('dashboard');
     } else {
-      const { data } = await supabase.from('perfiles_usuarios').select('*').eq('email', email).single();
+      // Búsqueda en DB por Email y Password
+      const { data, error } = await supabase
+        .from('perfiles_usuarios')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .single();
+
       if (data) { 
         setUser(data); 
         setView('dashboard'); 
       } else { 
-        alert("Acceso denegado. Verifique su correo."); 
+        alert("Acceso denegado. Verifique su correo y clave."); 
       }
     }
   };
@@ -104,7 +117,7 @@ const OroJuezApp = () => {
       foto_url: photo
     }]);
     if (!error) {
-      alert("Reporte guardado exitosamente.");
+      alert("Reporte guardado.");
       setPhoto(null); setPesoManual(''); setPesoOCR(null);
       await cargarDatos();
     }
@@ -112,11 +125,18 @@ const OroJuezApp = () => {
   };
 
   if (view === 'login') return (
-    <div className="container" style={{padding:'50px'}}>
-      <div className="navbar"><h1>ORO JUEZ V3</h1></div>
-      <form onSubmit={handleLogin} style={{marginTop:'20px'}}>
-        <input name="email" type="email" placeholder="Correo Corporativo" required style={{padding:'15px', width:'100%'}} />
-        <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'15px', marginTop:'15px', cursor:'pointer'}}>INGRESAR</button>
+    <div className="container" style={{padding:'40px 20px', maxWidth:'400px', margin:'auto'}}>
+      <div className="navbar" style={{borderRadius:'10px'}}><h1>ORO JUEZ V3</h1></div>
+      <form onSubmit={handleLogin} style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'15px'}}>
+        <div style={{position:'relative'}}>
+            <Mail style={{position:'absolute', left:'10px', top:'12px', opacity:0.5}} size={20}/>
+            <input name="email" type="email" placeholder="Correo Electrónico" required style={{padding:'12px 12px 12px 40px', width:'100%', borderRadius:'8px', border:'1px solid #ccc'}} />
+        </div>
+        <div style={{position:'relative'}}>
+            <Lock style={{position:'absolute', left:'10px', top:'12px', opacity:0.5}} size={20}/>
+            <input name="password" type="password" placeholder="Contraseña" required style={{padding:'12px 12px 12px 40px', width:'100%', borderRadius:'8px', border:'1px solid #ccc'}} />
+        </div>
+        <button className="navbar" style={{width:'100%', color:'white', border:'none', padding:'15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold'}}>INICIAR SESIÓN</button>
       </form>
     </div>
   );
@@ -124,17 +144,17 @@ const OroJuezApp = () => {
   return (
     <div className="container">
       <div className="navbar" style={{display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
-        <span style={{fontWeight:'bold'}}>ORO JUEZ V3 | {user.rol?.toUpperCase()}</span>
+        <span style={{fontWeight:'bold'}}>V3 | {user.nombre} ({user.rol?.toUpperCase()})</span>
         <button onClick={() => setView('login')} style={{color:'white', background:'none', border:'none', cursor:'pointer'}}><LogOut/></button>
       </div>
 
       <div style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto'}}>
-        <button onClick={() => setView('dashboard')} className="card" style={{flex:1, padding:'10px'}}>CAPTURA</button>
-        <button onClick={() => setView('reportes')} className="card" style={{flex:1, padding:'10px'}}>REPORTES</button>
+        <button onClick={() => setView('dashboard')} className="card" style={{flex:1, padding:'10px', border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURA</button>
+        <button onClick={() => setView('reportes')} className="card" style={{flex:1, padding:'10px', border:view==='reportes'?'2px solid #ffc107':'none'}}>REPORTES</button>
         {user.rol === 'admin' && (
           <>
-            <button onClick={() => setView('sitios')} className="card" style={{flex:1, padding:'10px'}}>SEDES</button>
-            <button onClick={() => setView('usuarios')} className="card" style={{flex:1, padding:'10px'}}>USUARIOS</button>
+            <button onClick={() => setView('sitios')} className="card" style={{flex:1, padding:'10px', border:view==='sitios'?'2px solid #ffc107':'none'}}>SEDES</button>
+            <button onClick={() => setView('usuarios')} className="card" style={{flex:1, padding:'10px', border:view==='usuarios'?'2px solid #ffc107':'none'}}>USUARIOS</button>
           </>
         )}
       </div>
@@ -143,30 +163,31 @@ const OroJuezApp = () => {
         {view === 'usuarios' && (
           <div>
             <form onSubmit={handleGuardarUsuario} className="card" style={{textAlign:'left', padding:'20px'}}>
-              <h3 style={{marginTop:0}}>Registro de Usuarios</h3>
-              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre del Auditor" required />
+              <h3 style={{marginTop:0}}>Nuevo Usuario con Acceso</h3>
+              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required />
               <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required />
+              <input type="text" value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Asignar Contraseña" required />
               
-              <label style={{display:'block', marginTop:'10px', color:'red', fontWeight:'bold'}}>PASO 1: ASIGNAR ROL</label>
-              <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})} required style={{padding:'12px', border:'2px solid red', marginBottom:'15px', width:'100%', borderRadius:'8px'}}>
-                <option value="">-- SELECCIONE UN ROL --</option>
-                <option value="admin">Administrador (Control Total)</option>
-                <option value="auditor">Auditor (Ver todos los reportes)</option>
-                <option value="operativo">Operativo (Solo sus registros)</option>
+              <label style={{display:'block', marginTop:'10px', fontWeight:'bold'}}>Rol de Acceso:</label>
+              <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})} required style={{padding:'10px', width:'100%', marginBottom:'10px'}}>
+                <option value="">-- Seleccionar Rol --</option>
+                <option value="admin">Administrador</option>
+                <option value="auditor">Auditor</option>
+                <option value="operativo">Operativo</option>
               </select>
 
-              <label style={{display:'block', fontWeight:'bold'}}>PASO 2: VINCULAR A SEDE</label>
+              <label style={{display:'block', fontWeight:'bold'}}>Sede Asignada:</label>
               <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required style={{width:'100%', padding:'10px'}}>
-                <option value="">-- SELECCIONAR SEDE --</option>
-                {sitios.map(s => <option key={s.id} value={s.id}>{s.ciudad} | {s.nombre}</option>)}
+                <option value="">-- Seleccionar Sede --</option>
+                {sitios.map(s => <option key={s.id} value={s.id}>{s.ciudad} - {s.nombre}</option>)}
               </select>
-              <button type="submit" className="navbar" style={{color:'white', width:'100%', border:'none', marginTop:'20px', padding:'15px', borderRadius:'10px', cursor:'pointer'}}>{loading?'Procesando...':'CREAR AUDITOR'}</button>
+              <button type="submit" className="navbar" style={{color:'white', width:'100%', border:'none', marginTop:'20px', padding:'15px', borderRadius:'10px'}}>{loading?'Guardando...':'CREAR USUARIO'}</button>
             </form>
-            <div style={{marginTop:'30px'}}>
+            <div style={{marginTop:'20px'}}>
               {usuarios.map(u => (
-                <div key={u.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', textAlign:'left', padding:'15px'}}>
-                  <div><strong>{u.nombre}</strong> <span style={{fontSize:'10px', background:'#eee', padding:'2px 5px'}}>{u.rol}</span><br/><small>{u.email}</small></div>
-                  <button onClick={async () => { if(confirm("¿Eliminar?")) { await supabase.from('perfiles_usuarios').delete().eq('id', u.id); cargarDatos(); } }} style={{color:'red', background:'none', border:'none', cursor:'pointer'}}><Trash2 size={20}/></button>
+                <div key={u.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'15px'}}>
+                  <div style={{textAlign:'left'}}><strong>{u.nombre}</strong><br/><small>{u.email} | Clave: {u.password}</small></div>
+                  <button onClick={async () => { if(confirm("¿Eliminar?")) { await supabase.from('perfiles_usuarios').delete().eq('id', u.id); cargarDatos(); } }} style={{color:'red', background:'none', border:'none'}}><Trash2/></button>
                 </div>
               ))}
             </div>
@@ -175,46 +196,37 @@ const OroJuezApp = () => {
 
         {view === 'dashboard' && (
            <div className="card" style={{padding:'20px'}}>
-              {!photo && !streaming && <button onClick={()=>{setStreaming(true); navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>videoRef.current.srcObject=s)}} className="navbar" style={{color:'white', border:'none', padding:'30px', borderRadius:'50%', cursor:'pointer'}}><Camera size={40}/></button>}
-              {streaming && <video ref={videoRef} autoPlay playsInline style={{width:'100%', borderRadius:'15px', border:'3px solid #000'}} />}
+              {!photo && !streaming && <button onClick={()=>{setStreaming(true); navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>videoRef.current.srcObject=s)}} className="navbar" style={{color:'white', border:'none', padding:'30px', borderRadius:'50%'}}><Camera size={40}/></button>}
+              {streaming && <video ref={videoRef} autoPlay playsInline style={{width:'100%', borderRadius:'15px', border:'2px solid #000'}} />}
               {streaming && <button onClick={takePhoto} className="navbar" style={{width:'100%', color:'white', border:'none', marginTop:'15px', padding:'15px', borderRadius:'10px'}}>CAPTURAR</button>}
               {photo && <img src={photo} style={{width:'100%', borderRadius:'15px'}} />}
               {photo && (
                 <div style={{marginTop:'15px'}}>
-                  <div style={{background:'#fff3cd', padding:'20px', borderRadius:'10px'}}>OCR: <strong>{pesoOCR || 'Leyendo...'}</strong> kg</div>
-                  <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="Peso Manual" style={{marginTop:'15px', fontSize:'1.8rem', textAlign:'center', width:'100%'}} />
-                  <button onClick={guardarPesaje} className="navbar" style={{width:'100%', color:'white', border:'none', padding:'15px', marginTop:'15px', fontSize:'1.1rem', borderRadius:'10px'}}>GUARDAR REPORTE</button>
-                  <button onClick={()=>{setPhoto(null); setPesoOCR(null);}} style={{width:'100%', marginTop:'10px', background:'none', border:'1px solid #ccc', padding:'10px'}}>REPETIR</button>
+                  <div style={{background:'#fff3cd', padding:'15px', borderRadius:'10px'}}>OCR: <strong>{pesoOCR || '---'}</strong> kg</div>
+                  <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="Peso Manual" style={{marginTop:'15px', fontSize:'1.5rem', textAlign:'center', width:'100%'}} />
+                  <button onClick={guardarPesaje} className="navbar" style={{width:'100%', color:'white', border:'none', padding:'15px', marginTop:'15px', borderRadius:'10px'}}>GUARDAR REPORTE</button>
+                  <button onClick={()=>{setPhoto(null); setPesoOCR(null);}} style={{width:'100%', marginTop:'10px', background:'none', border:'1px solid #ccc', padding:'10px', borderRadius:'10px'}}>REPETIR</button>
                 </div>
               )}
            </div>
         )}
 
         {view === 'reportes' && (
-          <div style={{overflowX:'auto', padding:'10px'}}>
-            <table style={{width:'100%', borderCollapse:'collapse'}}>
-              <thead>
-                <tr style={{borderBottom:'2px solid #eee'}}>
-                  <th style={{textAlign:'left', padding:'10px'}}>Sede</th>
-                  <th style={{padding:'10px'}}>Peso</th>
-                  <th style={{padding:'10px'}}>Ver</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportes.map(r => (
-                  <tr key={r.id} style={{borderBottom:'1px solid #f9f9f9'}}>
-                    <td style={{textAlign:'left', padding:'10px', fontSize:'12px'}}>{r.nombre_sitio}</td>
-                    <td style={{padding:'10px'}}>{r.peso_manual} kg</td>
-                    <td style={{padding:'10px'}}><button onClick={()=>window.open(r.foto_url)} style={{background:'none', border:'none', color:'#ffc107'}}><Eye/></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{padding:'10px'}}>
+            {reportes.filter(r => user.rol === 'admin' || r.usuario_email === user.email).map(r => (
+               <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', padding:'10px', textAlign:'left'}}>
+                  <div>
+                    <div style={{fontSize:'12px', fontWeight:'bold'}}>{r.nombre_sitio}</div>
+                    <div style={{fontSize:'14px'}}>{r.peso_manual} kg <small>({r.created_at.split('T')[0]})</small></div>
+                  </div>
+                  <button onClick={()=>window.open(r.foto_url)} style={{background:'none', border:'none', color:'#ffc107'}}><Eye/></button>
+               </div>
+            ))}
           </div>
         )}
 
         {view === 'sitios' && (
-          <div style={{padding:'10px'}}>
+          <div>
             <form onSubmit={async (e)=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); await cargarDatos();}} className="card" style={{padding:'20px'}}>
               <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
               <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
@@ -227,7 +239,7 @@ const OroJuezApp = () => {
         )}
       </div>
       <canvas ref={canvasRef} style={{display:'none'}} width="640" height="480" />
-      <div style={{fontSize:'10px', marginTop:'30px', opacity:0.6}}>SISTEMA ORO JUEZ V3 | CONTROL DE ACCESO POR ROLES</div>
+      <div style={{fontSize:'10px', marginTop:'30px', opacity:0.6}}>ORO JUEZ V3 | SEGURIDAD POR CLAVE Y ROLES</div>
     </div>
   );
 };
