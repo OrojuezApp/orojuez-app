@@ -17,6 +17,9 @@ const OroJuezApp = () => {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   
+  // Color Rojo Corporativo
+  const corporativoRed = "#b30000";
+
   // Filtros de Reportes
   const [filtroSede, setFiltroSede] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
@@ -47,7 +50,6 @@ const OroJuezApp = () => {
 
       let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
       
-      // Restricción: Los operadores solo ven sus propios registros
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
@@ -72,7 +74,6 @@ const OroJuezApp = () => {
 
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
-  // --- GESTIÓN DE USUARIOS ---
   const gestionarUsuario = async (e) => {
     e.preventDefault();
     const sede = sitios.find(s => String(s.id) === String(nuevoUsuario.sitio_id));
@@ -101,7 +102,6 @@ const OroJuezApp = () => {
     }
   };
 
-  // --- GESTIÓN DE SEDES ---
   const gestionarSede = async (e) => {
     e.preventDefault();
     const { error } = await supabase.from('sitios').insert([nuevoSitio]);
@@ -112,7 +112,6 @@ const OroJuezApp = () => {
     }
   };
 
-  // --- OPERACIÓN DE PESAJE ---
   const guardarControl = async () => {
     if (!photo || !pesoManual) return alert("Falta foto o peso.");
     setLoading(true);
@@ -150,20 +149,30 @@ const OroJuezApp = () => {
   };
 
   if (view === 'login') return (
-    <div className="container" style={{padding:'40px 20px', maxWidth:'400px', margin:'auto'}}>
-      <div className="navbar"><h1>ORO JUEZ V7.2</h1></div>
-      <form onSubmit={handleLogin} style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'15px'}}>
-        <input name="email" type="email" placeholder="Usuario / Email" required />
-        <input name="password" type="password" placeholder="Contraseña" required />
-        <button className="navbar" style={{color:'white', padding:'15px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>ENTRAR</button>
+    <div className="container" style={{padding:'20px', maxWidth:'450px', margin:'auto', textAlign:'center', display:'flex', flexDirection:'column', minHeight:'100vh', justifyContent:'center'}}>
+      <div style={{marginBottom:'20px'}}>
+        <img src="https://khgqeqrnlbhadoarcgul.supabase.co/storage/v1/object/public/logos/Logotipo_Orojuez_1.png" alt="Logo Orojuez" style={{width:'200px', height:'auto'}} />
+      </div>
+      <h1 style={{color: corporativoRed, fontSize:'2.8rem', margin:'0', fontWeight:'bold'}}>OROJUEZ SA.</h1>
+      <p style={{fontSize:'1.2rem', color:'#555', marginBottom:'30px', fontWeight:'500'}}>Sistema de Control de Pesos</p>
+      
+      <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'15px', background:'white', padding:'25px', borderRadius:'15px', boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
+        <input name="email" type="email" placeholder="Usuario / Correo Electrónico" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ddd'}} />
+        <input name="password" type="password" placeholder="Contraseña" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ddd'}} />
+        <button style={{backgroundColor: corporativoRed, color:'white', padding:'15px', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', fontSize:'1rem'}}>INICIAR SESIÓN</button>
       </form>
+
+      <div style={{marginTop:'40px', padding:'20px', fontSize:'0.85rem', color:'#888', borderTop:'1px solid #eee'}}>
+        <p>© 2026 Todos los derechos reservados a la empresa Orojuez SA.</p>
+        <p>Soporte técnico: <a href="mailto:sistemas.industria@orojuez.com.ec" style={{color: corporativoRed, textDecoration:'none', fontWeight:'bold'}}>sistemas.industria@orojuez.com.ec</a></p>
+      </div>
     </div>
   );
 
   return (
     <div className="container">
-      <div className="navbar no-print" style={{display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
-        <span style={{fontSize:'12px'}}>{user?.nombre} | {user?.rol.toUpperCase()}</span>
+      <div className="navbar no-print" style={{backgroundColor: corporativoRed, display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
+        <span style={{fontSize:'12px', color:'white', fontWeight:'bold'}}>{user?.nombre} | {user?.rol.toUpperCase()}</span>
         <div style={{display:'flex', gap:'15px'}}>
           <button onClick={cargarDatos} style={{background:'none', border:'none', color:'white'}}><RefreshCw size={18} className={loading?'spin':''}/></button>
           <button onClick={() => setView('login')} style={{color:'white', background:'none', border:'none'}}><LogOut size={18}/></button>
@@ -171,15 +180,15 @@ const OroJuezApp = () => {
       </div>
 
       <div className="no-print" style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto', paddingBottom:'5px'}}>
-        <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?'2px solid #ffc107':'none'}}>CAPTURA</button>
-        <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='historial'?'2px solid #ffc107':'none'}}>HISTORIAL</button>
+        <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?`2px solid ${corporativoRed}`:'none', color: view==='dashboard'?corporativoRed:'inherit'}}>CAPTURA</button>
+        <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='historial'?`2px solid ${corporativoRed}`:'none', color: view==='historial'?corporativoRed:'inherit'}}>HISTORIAL</button>
         {['admin', 'superadmin', 'auditor'].includes(user?.rol) && (
-          <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='reportes'?'2px solid #ffc107':'none'}}>REPORTES</button>
+          <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='reportes'?`2px solid ${corporativoRed}`:'none', color: view==='reportes'?corporativoRed:'inherit'}}>REPORTES</button>
         )}
         {['admin', 'superadmin'].includes(user?.rol) && (
           <>
-            <button onClick={() => setView('usuarios')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='usuarios'?'2px solid #ffc107':'none'}}>USUARIOS</button>
-            <button onClick={() => setView('sedes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='sedes'?'2px solid #ffc107':'none'}}>SEDES</button>
+            <button onClick={() => setView('usuarios')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='usuarios'?`2px solid ${corporativoRed}`:'none', color: view==='usuarios'?corporativoRed:'inherit'}}>USUARIOS</button>
+            <button onClick={() => setView('sedes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='sedes'?`2px solid ${corporativoRed}`:'none', color: view==='sedes'?corporativoRed:'inherit'}}>SEDES</button>
           </>
         )}
       </div>
@@ -188,7 +197,7 @@ const OroJuezApp = () => {
         {view === 'dashboard' && (
           <div className="card" style={{padding:'15px'}}>
             {!photo && !streaming && (
-              <button onClick={()=>{setStreaming(true); navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>videoRef.current.srcObject=s)}} className="navbar" style={{color:'white', padding:'30px', borderRadius:'50%', border:'none'}}><Camera size={30}/></button>
+              <button onClick={()=>{setStreaming(true); navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>videoRef.current.srcObject=s)}} style={{backgroundColor: corporativoRed, color:'white', padding:'30px', borderRadius:'50%', border:'none', cursor:'pointer'}}><Camera size={30}/></button>
             )}
             {streaming && (
               <div>
@@ -199,16 +208,16 @@ const OroJuezApp = () => {
                   setPhoto(canvas.toDataURL('image/jpeg'));
                   setStreaming(false);
                   videoRef.current.srcObject.getTracks().forEach(t => t.stop());
-                }} className="navbar" style={{width:'100%', color:'white', padding:'12px', border:'none', borderRadius:'8px', marginTop:'10px'}}>TOMAR FOTO</button>
+                }} style={{width:'100%', backgroundColor: corporativoRed, color:'white', padding:'12px', border:'none', borderRadius:'8px', marginTop:'10px', fontWeight:'bold'}}>CAPTURAR FOTO</button>
               </div>
             )}
             {photo && (
               <div>
                 <img src={photo} style={{width:'100%', borderRadius:'10px'}} alt="Pesaje" />
-                <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="0.00 kg" style={{fontSize:'2rem', textAlign:'center', width:'100%', margin:'10px 0'}} />
-                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Observaciones..." style={{width:'100%', marginBottom:'10px', padding:'10px', borderRadius:'5px'}} />
-                <button onClick={guardarControl} disabled={loading} className="navbar" style={{width:'100%', color:'white', padding:'15px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>GUARDAR REGISTRO</button>
-                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px'}}>Cancelar foto</button>
+                <input type="number" value={pesoManual} onChange={e=>setPesoManual(e.target.value)} placeholder="0.00 kg" style={{fontSize:'2.5rem', textAlign:'center', width:'100%', margin:'10px 0', border:`2px solid ${corporativoRed}`, borderRadius:'10px'}} />
+                <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Observaciones..." style={{width:'100%', marginBottom:'10px', padding:'10px', borderRadius:'5px', border:'1px solid #ddd'}} />
+                <button onClick={guardarControl} disabled={loading} style={{width:'100%', backgroundColor: corporativoRed, color:'white', padding:'15px', border:'none', borderRadius:'8px', fontWeight:'bold', fontSize:'1.1rem'}}>GUARDAR REGISTRO</button>
+                <button onClick={()=>setPhoto(null)} style={{width:'100%', marginTop:'10px', background:'none', border:'none', fontSize:'12px', color:'#666'}}>Cancelar foto</button>
               </div>
             )}
           </div>
@@ -217,7 +226,7 @@ const OroJuezApp = () => {
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
-              <h4>{editMode ? 'Editar' : 'Nuevo'} Usuario</h4>
+              <h4 style={{color: corporativoRed}}>{editMode ? 'Editar' : 'Nuevo'} Usuario</h4>
               <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre completo" required />
               <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email (Usuario)" required disabled={editMode} />
               <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
@@ -230,13 +239,13 @@ const OroJuezApp = () => {
                 <option value="">Sede Asignada...</option>
                 {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
-              <button className="navbar" style={{color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'5px'}}>
+              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>
                 {editMode ? 'ACTUALIZAR' : 'CREAR USUARIO'}
               </button>
             </form>
             <div className="card">
               <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
-                <thead><tr style={{background:'#eee'}}><th style={{padding:'8px'}}>Nombre / Rol</th><th>Sede</th><th style={{textAlign:'right'}}>Acción</th></tr></thead>
+                <thead><tr style={{background:'#f8f8f8'}}><th style={{padding:'8px'}}>Nombre / Rol</th><th>Sede</th><th style={{textAlign:'right'}}>Acción</th></tr></thead>
                 <tbody>
                   {usuarios.map(u => (
                     <tr key={u.email} style={{borderBottom:'1px solid #eee'}}>
@@ -244,7 +253,7 @@ const OroJuezApp = () => {
                       <td>{u.nombre_sitio}</td>
                       <td style={{textAlign:'right'}}>
                         <button onClick={()=>{setNuevoUsuario(u); setEditMode(true);}} style={{color:'blue', border:'none', background:'none', marginRight:'10px'}}><Edit size={14}/></button>
-                        <button onClick={()=>eliminarUsuario(u.email)} style={{color:'red', border:'none', background:'none'}}><Trash2 size={14}/></button>
+                        <button onClick={()=>eliminarUsuario(u.email)} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={14}/></button>
                       </td>
                     </tr>
                   ))}
@@ -257,16 +266,16 @@ const OroJuezApp = () => {
         {view === 'sedes' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarSede} className="card" style={{padding:'15px', marginBottom:'15px'}}>
-              <h4>Nueva Sede</h4>
+              <h4 style={{color: corporativoRed}}>Nueva Sede</h4>
               <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
               <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
-              <button className="navbar" style={{color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'5px'}}>CREAR SEDE</button>
+              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
             </form>
             <div className="card">
               {sitios.map(s => (
                 <div key={s.id} style={{padding:'10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
                   <span>{s.nombre} ({s.ciudad})</span>
-                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color:'red', border:'none', background:'none'}}><Trash2 size={16}/></button>
+                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={16}/></button>
                 </div>
               ))}
             </div>
@@ -283,21 +292,21 @@ const OroJuezApp = () => {
                     <option value="">Todas las Sedes</option>
                     {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                   </select>
-                  <button onClick={aplicarFiltros} className="navbar" style={{color:'white', border:'none'}}><Search size={14}/></button>
+                  <button onClick={aplicarFiltros} style={{backgroundColor: corporativoRed, color:'white', border:'none', borderRadius:'5px'}}><Search size={14}/></button>
                 </div>
                 <div style={{display:'flex', gap:'5px', marginTop:'10px'}}>
                   <button onClick={()=>{
                     const encabezados = "Fecha,Sede,Usuario,Peso (kg),Observaciones\n";
                     const filas = reportesFiltrados.map(r => `"${new Date(r.created_at).toLocaleString()}","${r.nombre_sitio}","${r.nombre_usuario}","${r.peso_manual}","${r.observaciones}"`).join("\n");
                     const blob = new Blob([encabezados + filas], { type: 'text/csv' });
-                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Reporte_OroJuez.csv'; a.click();
-                  }} className="card" style={{flex:1, background:'#28a745', color:'white', border:'none', padding:'8px'}}>EXCEL/CSV</button>
-                  <button onClick={() => window.print()} className="card" style={{flex:1, background:'#dc3545', color:'white', border:'none', padding:'8px'}}>PDF / IMPRIMIR</button>
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Reporte_Orojuez.csv'; a.click();
+                  }} className="card" style={{flex:1, background:'#28a745', color:'white', border:'none', padding:'8px', fontWeight:'bold'}}>EXCEL</button>
+                  <button onClick={() => window.print()} className="card" style={{flex:1, background: corporativoRed, color:'white', border:'none', padding:'8px', fontWeight:'bold'}}>PDF / IMPRIMIR</button>
                 </div>
              </div>
              <div className="card" style={{padding:'5px', overflowX:'auto'}}>
                <table style={{width:'100%', fontSize:'9px', borderCollapse:'collapse'}}>
-                  <thead><tr style={{background:'#eee'}}><th style={{padding:'5px'}}>Fecha</th><th>Sede/Usuario</th><th>Peso</th><th>Obs</th><th className="no-print">Foto</th></tr></thead>
+                  <thead><tr style={{background:'#f2f2f2'}}><th style={{padding:'5px'}}>Fecha</th><th>Sede/Usuario</th><th>Peso</th><th>Obs</th><th className="no-print">Foto</th></tr></thead>
                   <tbody>
                     {reportesFiltrados.map(r => (
                       <tr key={r.id} style={{borderBottom:'1px solid #eee'}}>
@@ -305,7 +314,7 @@ const OroJuezApp = () => {
                         <td>{r.nombre_sitio}<br/><small>{r.nombre_usuario}</small></td>
                         <td><strong>{r.peso_manual}</strong></td>
                         <td>{r.observaciones}</td>
-                        <td className="no-print"><button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{border:'none', background:'none', color:'#ffc107'}}><ImageIcon size={14}/></button></td>
+                        <td className="no-print"><button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{border:'none', background:'none', color: corporativoRed}}><ImageIcon size={14}/></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -318,9 +327,9 @@ const OroJuezApp = () => {
         {view === 'historial' && (
           <div style={{padding:'5px'}}>
             {reportesFiltrados.map(r => (
-              <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'10px'}}>
-                <div style={{textAlign:'left'}}><strong>{r.nombre_sitio}</strong><br/><span style={{color:'#ffc107'}}>{r.peso_manual} kg</span><br/><small>{new Date(r.created_at).toLocaleString()}</small></div>
-                <button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{background:'none', border:'none', color:'#ffc107'}}><ImageIcon/></button>
+              <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'10px', borderLeft:`5px solid ${corporativoRed}`}}>
+                <div style={{textAlign:'left'}}><strong>{r.nombre_sitio}</strong><br/><span style={{color: corporativoRed, fontWeight:'bold'}}>{r.peso_manual} kg</span><br/><small>{new Date(r.created_at).toLocaleString()}</small></div>
+                <button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{background:'none', border:'none', color: corporativoRed}}><ImageIcon/></button>
               </div>
             ))}
           </div>
