@@ -68,6 +68,34 @@ const OroJuezApp = () => {
 
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
+  // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) ---
+  const exportarExcel = () => {
+    if (reportesFiltrados.length === 0) return alert("No hay datos para exportar");
+
+    const encabezados = ["Fecha", "Hora", "Sede", "Usuario", "Peso (kg)", "Observaciones", "URL Foto"];
+    const filas = reportesFiltrados.map(r => [
+      new Date(r.created_at).toLocaleDateString(),
+      new Date(r.created_at).toLocaleTimeString(),
+      r.nombre_sitio,
+      r.nombre_usuario,
+      r.peso_manual,
+      r.observaciones || '',
+      r.foto_url
+    ]);
+
+    let csvContent = "data:text/csv;charset=utf-8," 
+      + encabezados.join(",") + "\n" 
+      + filas.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Reporte_Pesaje_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const gestionarUsuario = async (e) => {
     e.preventDefault();
     const sede = sitios.find(s => String(s.id) === String(nuevoUsuario.sitio_id));
@@ -227,7 +255,11 @@ const OroJuezApp = () => {
                   <button onClick={aplicarFiltros} style={{backgroundColor: corporativoRed, color:'white', border:'none', borderRadius:'5px'}}><Search size={14}/></button>
                 </div>
                 <div style={{display:'flex', gap:'5px', marginTop:'10px'}}>
-                  <button onClick={() => window.print()} className="card" style={{flex:1, background: corporativoRed, color:'white', border:'none', padding:'8px', fontWeight:'bold'}}>PDF / IMPRIMIR REPORTE</button>
+                  <button onClick={() => window.print()} className="card" style={{flex:1, background: corporativoRed, color:'white', border:'none', padding:'8px', fontWeight:'bold'}}>PDF / IMPRIMIR</button>
+                  {/* BOTÓN DE EXCEL AÑADIDO AQUÍ */}
+                  <button onClick={exportarExcel} className="card" style={{flex:1, background: '#1D6F42', color:'white', border:'none', padding:'8px', fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
+                    <Download size={14}/> EXCEL
+                  </button>
                 </div>
              </div>
 
