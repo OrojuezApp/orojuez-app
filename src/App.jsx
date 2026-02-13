@@ -51,36 +51,8 @@ const OroJuezApp = () => {
       const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
-    } catch (err) { console.error("Error:", err); } 
+    } catch (err) { console.error("Error cargando datos:", err); } 
     finally { setLoading(false); }
-  };
-
-  const aplicarFiltros = () => {
-    let temp = [...reportes];
-    
-    if (filtroSede) {
-      temp = temp.filter(r => 
-        String(r.sitio_id) === String(filtroSede) || 
-        r.nombre_sitio === sitios.find(s => String(s.id) === String(filtroSede))?.nombre ||
-        r.sitio_nombre === sitios.find(s => String(s.id) === String(filtroSede))?.nombre
-      );
-    }
-
-    if (fechaInicio) {
-      temp = temp.filter(r => {
-        const fechaRegistro = r.created_at ? r.created_at.split(' ')[0] : '';
-        return fechaRegistro >= fechaInicio;
-      });
-    }
-
-    if (fechaFin) {
-      temp = temp.filter(r => {
-        const fechaRegistro = r.created_at ? r.created_at.split(' ')[0] : '';
-        return fechaRegistro <= fechaFin;
-      });
-    }
-
-    setReportesFiltrados(temp);
   };
 
   const handleLogin = async (e) => {
@@ -88,7 +60,7 @@ const OroJuezApp = () => {
     setLoading(true);
     const { email, password } = e.target.elements;
     
-    // TABLA CORRECTA: 'usuarios' (según tu copia funcional)
+    // TABLA: 'usuarios' (Extraída de tu copia funcional)
     const { data, error } = await supabase
       .from('usuarios')
       .select('*')
@@ -103,6 +75,36 @@ const OroJuezApp = () => {
       alert("Credenciales incorrectas"); 
     }
     setLoading(false);
+  };
+
+  const aplicarFiltros = () => {
+    let temp = [...reportes];
+    
+    if (filtroSede) {
+      const sedeSeleccionada = sitios.find(s => String(s.id) === String(filtroSede));
+      temp = temp.filter(r => 
+        String(r.sitio_id) === String(filtroSede) || 
+        r.nombre_sitio === sedeSeleccionada?.nombre ||
+        r.sitio_nombre === sedeSeleccionada?.nombre
+      );
+    }
+
+    if (fechaInicio) {
+      temp = temp.filter(r => {
+        // Corrección desfase horario: comparamos solo la fecha YYYY-MM-DD
+        const fechaRegistro = r.created_at ? r.created_at.split(' ')[0] : '';
+        return fechaRegistro >= fechaInicio;
+      });
+    }
+
+    if (fechaFin) {
+      temp = temp.filter(r => {
+        const fechaRegistro = r.created_at ? r.created_at.split(' ')[0] : '';
+        return fechaRegistro <= fechaFin;
+      });
+    }
+
+    setReportesFiltrados(temp);
   };
 
   const exportarExcel = () => {
@@ -140,16 +142,23 @@ const OroJuezApp = () => {
   const guardarPesaje = async () => {
     if (!pesoManual) return alert("Ingrese el peso");
     setLoading(true);
+    const sedeNombre = sitios.find(s => s.id === user.sitio_id)?.nombre || '';
     const { error } = await supabase.from('reportes_pesaje').insert([{
       usuario_email: user.email,
       usuario_nombre: user.nombre,
       sitio_id: user.sitio_id,
-      sitio_nombre: sitios.find(s => s.id === user.sitio_id)?.nombre,
+      sitio_nombre: sedeNombre,
       peso_neto: parseFloat(pesoManual),
       observaciones,
       foto_url: photo
     }]);
-    if (!error) { alert("Pesaje Guardado"); setPhoto(null); setPesoManual(''); setObservaciones(''); cargarDatos(); }
+    if (!error) { 
+      alert("Pesaje Guardado"); 
+      setPhoto(null); 
+      setPesoManual(''); 
+      setObservaciones(''); 
+      cargarDatos(); 
+    }
     setLoading(false);
   };
 
@@ -160,12 +169,12 @@ const OroJuezApp = () => {
           <ShieldCheck size={28}/>
           <h2 style={{margin:0, fontSize:'1.2rem'}}>ORO JUEZ {view.toUpperCase()}</h2>
         </div>
-        {user && <button onClick={()=>{setUser(null); setView('login');}} style={{background:'none', border:'none', color:'white'}}><LogOut/></button>}
+        {user && <button onClick={()=>{setUser(null); setView('login');}} style={{background:'none', border:'none', color:'white', cursor:'pointer'}}><LogOut/></button>}
       </nav>
 
       <div style={{padding:'20px', maxWidth:'1200px', margin:'0 auto'}}>
         {view === 'login' && (
-          <div className="card" style={{maxWidth:'400px', margin:'100px auto', padding:'30px', textAlign:'center'}}>
+          <div className="card" style={{maxWidth:'400px', margin:'100px auto', padding:'30px', textAlign:'center', backgroundColor:'white', borderRadius:'12px'}}>
             <h3 style={{color: corporativoRed, marginBottom:'20px'}}>INICIAR SESIÓN</h3>
             <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
               <input name="email" type="email" placeholder="Correo Electrónico" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ccc'}} />
@@ -180,13 +189,13 @@ const OroJuezApp = () => {
         {(view === 'admin' || view === 'operador') && (
           <div>
             <div style={{display:'flex', gap:'10px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
-              <button onClick={()=>setEditMode(false)} className={`tab-btn ${!editMode ? 'active' : ''}`} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REGISTRO</button>
-              <button onClick={()=>setEditMode(true)} className={`tab-btn ${editMode ? 'active' : ''}`} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REPORTES</button>
+              <button onClick={()=>setEditMode(false)} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REGISTRO</button>
+              <button onClick={()=>setEditMode(true)} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REPORTES</button>
               {user.rol === 'admin' && <button onClick={()=>setView('config')} style={{padding:'10px 20px', backgroundColor:'white', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>CONFIG</button>}
             </div>
 
             {!editMode ? (
-              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>
+              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
                 <h3 style={{color: corporativoRed, display:'flex', alignItems:'center', gap:'10px', borderBottom:'2px solid #eee', paddingBottom:'10px'}}><Camera/> Capturar Pesaje</h3>
                 <div style={{marginTop:'20px', display:'flex', flexDirection:'column', gap:'15px'}}>
                   <div style={{width:'100%', height:'250px', backgroundColor:'#000', borderRadius:'12px', overflow:'hidden', position:'relative', display:'flex', justifyContent:'center', alignItems:'center'}}>
@@ -197,7 +206,7 @@ const OroJuezApp = () => {
                     ) : (
                       <button onClick={startCamera} style={{backgroundColor:'white', border:'none', padding:'15px', borderRadius:'50%', cursor:'pointer'}}><Camera size={30} color={corporativoRed}/></button>
                     )}
-                    {streaming && <button onClick={takePhoto} style={{position:'absolute', bottom:'20px', backgroundColor: corporativoRed, color:'white', border:'none', padding:'15px', borderRadius:'50%', cursor:'pointer'}}><Camera/></button>}
+                    {streaming && <button onClick={takePhoto} style={{position:'absolute', bottom:'20px', left:'50%', transform:'translateX(-50%)', backgroundColor: corporativoRed, color:'white', border:'none', padding:'15px', borderRadius:'50%', cursor:'pointer'}}><Camera/></button>}
                   </div>
                   
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
@@ -214,7 +223,7 @@ const OroJuezApp = () => {
                 </div>
               </div>
             ) : (
-              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>
+              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                   <h3 style={{margin:0, color: corporativoRed}}><FileText/> Reportes</h3>
                   <button onClick={exportarExcel} style={{backgroundColor:'#28a745', color:'white', border:'none', padding:'8px 15px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer'}}><Download size={18}/> CSV</button>
