@@ -40,7 +40,7 @@ const OroJuezApp = () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
-      const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
+      const { data: u } = await supabase.from('usuarios').select('*').order('nombre');
       setSitios(s || []);
       setUsuarios(u || []);
 
@@ -51,7 +51,7 @@ const OroJuezApp = () => {
       const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
-    } catch (err) { console.error("Error cargando datos:", err); } 
+    } catch (err) { console.error("Error:", err); } 
     finally { setLoading(false); }
   };
 
@@ -83,9 +83,31 @@ const OroJuezApp = () => {
     setReportesFiltrados(temp);
   };
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const { email, password } = e.target.elements;
+    
+    // TABLA CORRECTA: 'usuarios' (según tu copia funcional)
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('*')
+      .eq('email', email.value)
+      .eq('password', password.value)
+      .single();
+
+    if (data) { 
+      setUser(data); 
+      setView(data.rol === 'admin' ? 'admin' : 'operador'); 
+    } else { 
+      alert("Credenciales incorrectas"); 
+    }
+    setLoading(false);
+  };
+
   const exportarExcel = () => {
     const headers = "Fecha,Hora,Sede,Usuario,Peso (kg),Observaciones\n";
-    const csvContent = tempFiltradoExcel().map(r => {
+    const csvContent = reportesFiltrados.map(r => {
       const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
       const hora = r.created_at ? new Date(r.created_at).toLocaleTimeString() : '';
       const sede = r.sitio_nombre || r.nombre_sitio || '';
@@ -99,20 +121,6 @@ const OroJuezApp = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const tempFiltradoExcel = () => {
-    return reportesFiltrados;
-  };
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const { email, password } = e.target.elements;
-    const { data, error } = await supabase.from('perfiles_usuarios').select('*').eq('email', email.value).eq('password', password.value).single();
-    if (data) { setUser(data); setView(data.rol === 'admin' ? 'admin' : 'operador'); }
-    else { alert("Credenciales incorrectas"); }
-    setLoading(false);
   };
 
   const startCamera = async () => {
@@ -172,24 +180,24 @@ const OroJuezApp = () => {
         {(view === 'admin' || view === 'operador') && (
           <div>
             <div style={{display:'flex', gap:'10px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
-              <button onClick={()=>setEditMode(false)} className={`tab-btn ${!editMode ? 'active' : ''}`} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333'}}>REGISTRO</button>
-              <button onClick={()=>setEditMode(true)} className={`tab-btn ${editMode ? 'active' : ''}`} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333'}}>REPORTES</button>
-              {user.rol === 'admin' && <button onClick={()=>setView('config')} className="tab-btn" style={{backgroundColor:'white', color:'#333'}}>CONFIG</button>}
+              <button onClick={()=>setEditMode(false)} className={`tab-btn ${!editMode ? 'active' : ''}`} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REGISTRO</button>
+              <button onClick={()=>setEditMode(true)} className={`tab-btn ${editMode ? 'active' : ''}`} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>REPORTES</button>
+              {user.rol === 'admin' && <button onClick={()=>setView('config')} style={{padding:'10px 20px', backgroundColor:'white', borderRadius:'8px', border:'1px solid #eee', cursor:'pointer'}}>CONFIG</button>}
             </div>
 
             {!editMode ? (
-              <div className="card" style={{padding:'20px'}}>
+              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>
                 <h3 style={{color: corporativoRed, display:'flex', alignItems:'center', gap:'10px', borderBottom:'2px solid #eee', paddingBottom:'10px'}}><Camera/> Capturar Pesaje</h3>
                 <div style={{marginTop:'20px', display:'flex', flexDirection:'column', gap:'15px'}}>
                   <div style={{width:'100%', height:'250px', backgroundColor:'#000', borderRadius:'12px', overflow:'hidden', position:'relative', display:'flex', justifyContent:'center', alignItems:'center'}}>
                     {streaming ? (
                       <video ref={videoRef} autoPlay playsInline style={{width:'100%', height:'100%', objectFit:'cover'}} />
                     ) : photo ? (
-                      <img src={photo} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                      <img src={photo} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="Captura" />
                     ) : (
-                      <button onClick={startCamera} style={{backgroundColor:'white', border:'none', padding:'15px', borderRadius:'50%'}}><Camera size={30} color={corporativoRed}/></button>
+                      <button onClick={startCamera} style={{backgroundColor:'white', border:'none', padding:'15px', borderRadius:'50%', cursor:'pointer'}}><Camera size={30} color={corporativoRed}/></button>
                     )}
-                    {streaming && <button onClick={takePhoto} style={{position:'absolute', bottom:'20px', backgroundColor: corporativoRed, color:'white', border:'none', padding:'15px', borderRadius:'50%'}}><Camera/></button>}
+                    {streaming && <button onClick={takePhoto} style={{position:'absolute', bottom:'20px', backgroundColor: corporativoRed, color:'white', border:'none', padding:'15px', borderRadius:'50%', cursor:'pointer'}}><Camera/></button>}
                   </div>
                   
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
@@ -202,14 +210,14 @@ const OroJuezApp = () => {
                       <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} style={{width:'100%', padding:'10px', height:'55px', borderRadius:'10px', border:'1px solid #ccc'}} />
                     </div>
                   </div>
-                  <button onClick={guardarPesaje} disabled={loading} style={{backgroundColor:'#28a745', color:'white', padding:'18px', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'1.1rem'}}>{loading ? 'GUARDANDO...' : 'GUARDAR PESAJE'}</button>
+                  <button onClick={guardarPesaje} disabled={loading} style={{backgroundColor:'#28a745', color:'white', padding:'18px', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'1.1rem', cursor:'pointer'}}>{loading ? 'GUARDANDO...' : 'GUARDAR PESAJE'}</button>
                 </div>
               </div>
             ) : (
-              <div className="card" style={{padding:'20px'}}>
+              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                   <h3 style={{margin:0, color: corporativoRed}}><FileText/> Reportes</h3>
-                  <button onClick={exportarExcel} style={{backgroundColor:'#28a745', color:'white', border:'none', padding:'8px 15px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'5px'}}><Download size={18}/> CSV</button>
+                  <button onClick={exportarExcel} style={{backgroundColor:'#28a745', color:'white', border:'none', padding:'8px 15px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer'}}><Download size={18}/> CSV</button>
                 </div>
 
                 <div style={{backgroundColor:'#f9f9f9', padding:'15px', borderRadius:'12px', marginBottom:'20px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
@@ -221,7 +229,7 @@ const OroJuezApp = () => {
                   </div>
                   <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
                   <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
-                  <button onClick={aplicarFiltros} style={{gridColumn:'1 / span 2', backgroundColor: corporativoRed, color:'white', padding:'12px', border:'none', borderRadius:'8px', fontWeight:'bold'}}><Search size={18}/> FILTRAR RESULTADOS</button>
+                  <button onClick={aplicarFiltros} style={{gridColumn:'1 / span 2', backgroundColor: corporativoRed, color:'white', padding:'12px', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}><Search size={18}/> FILTRAR RESULTADOS</button>
                 </div>
 
                 <div style={{overflowX:'auto'}}>
@@ -251,26 +259,28 @@ const OroJuezApp = () => {
 
         {view === 'config' && (
           <div style={{display:'grid', gap:'20px'}}>
-            <button onClick={()=>setView('admin')} style={{padding:'10px', backgroundColor:'#666', color:'white', border:'none', borderRadius:'8px'}}>VOLVER</button>
-            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('perfiles_usuarios').insert([nuevoUsuario]); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'operador', password:''}); cargarDatos();}} className="card" style={{padding:'15px'}}>
+            <button onClick={()=>setView('admin')} style={{padding:'10px', backgroundColor:'#666', color:'white', border:'none', borderRadius:'8px', cursor:'pointer'}}>VOLVER</button>
+            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('usuarios').insert([nuevoUsuario]); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'operador', password:''}); cargarDatos();}} className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
               <h4 style={{color: corporativoRed}}>Nuevo Usuario</h4>
               <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-                <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required />
-                <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required />
-                <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
-                <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required>
+                <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
+                <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
+                <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
+                <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}}>
                   <option value="">Asignar Sede</option>
                   {sitios.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
-                <button style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px'}}>CREAR USUARIO</button>
+                <button type="submit" style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px', cursor:'pointer'}}>CREAR USUARIO</button>
               </div>
             </form>
             
-            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'15px'}}>
+            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
               <h4 style={{color: corporativoRed}}>Nueva Sede</h4>
-              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
-              <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
-              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
+              <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
+                <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
+                <button type="submit" style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>CREAR SEDE</button>
+              </div>
             </form>
           </div>
         )}
