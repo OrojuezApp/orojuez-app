@@ -55,50 +55,14 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-const aplicarFiltros = () => {
+  const aplicarFiltros = () => {
     let temp = [...reportes];
-
-    // 1. Filtro por Sede (Busca en ambas columnas posibles)
     if (filtroSede) {
-      temp = temp.filter(r => 
-        (r.sitio_nombre && r.sitio_nombre === filtroSede) || 
-        (r.nombre_sitio && r.nombre_sitio === filtroSede)
-      );
+      const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
+      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede) || r.nombre_sitio === sedeObj?.nombre);
     }
-
-    // 2. Filtro por Fechas (Comparación literal para evitar desfase UTC/Hora Local)
-    if (fechaInicio) {
-      temp = temp.filter(r => {
-        // created_at viene como "2026-02-12 02:28:07..."
-        // Al hacer split(' ')[0] nos quedamos solo con "2026-02-12"
-        const fechaRegistroLiteral = r.created_at.split(' ')[0];
-        return fechaRegistroLiteral >= fechaInicio;
-      });
-    }
-
-    if (fechaFin) {
-      temp = temp.filter(r => {
-        const fechaRegistroLiteral = r.created_at.split(' ')[0];
-        return fechaRegistroLiteral <= fechaFin;
-      });
-    }
-
-    setReportesFiltrados(temp);
-  };
-
-    // 2. Filtro por Fechas (Manejo preciso de objetos Date para no perder la hora)
-    if (fechaInicio) {
-      // Creamos un objeto fecha que empieza a las 00:00:00 del día de inicio
-      const dInicio = new Date(fechaInicio + 'T00:00:00');
-      temp = temp.filter(r => new Date(r.created_at) >= dInicio);
-    }
-
-    if (fechaFin) {
-      // Creamos un objeto fecha que termina a las 23:59:59 del día final
-      const dFin = new Date(fechaFin + 'T23:59:59');
-      temp = temp.filter(r => new Date(r.created_at) <= dFin);
-    }
-
+    if (fechaInicio) temp = temp.filter(r => r.created_at >= fechaInicio);
+    if (fechaFin) temp = temp.filter(r => r.created_at <= fechaFin + 'T23:59:59');
     setReportesFiltrados(temp);
   };
 
