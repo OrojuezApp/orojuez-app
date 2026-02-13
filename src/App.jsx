@@ -54,7 +54,7 @@ const OroJuezApp = () => {
     } catch (err) { console.error("Error:", err); } 
     finally { setLoading(false); }
   };
---
+
 const aplicarFiltros = () => {
     let temp = [...reportes];
 
@@ -82,7 +82,7 @@ const aplicarFiltros = () => {
 
     setReportesFiltrados(temp);
   };
---
+
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
