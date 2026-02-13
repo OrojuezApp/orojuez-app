@@ -23,7 +23,8 @@ const OroJuezApp = () => {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
+  // Ajustado a tu esquema: OPERATIVO
+  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'OPERATIVO', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
 
   const [photo, setPhoto] = useState(null);
@@ -40,12 +41,13 @@ const OroJuezApp = () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
-      const { data: u } = await supabase.from('usuarios').select('*').order('nombre');
+      // TABLA SEGÚN TU ESQUEMA
+      const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
       setSitios(s || []);
       setUsuarios(u || []);
 
       let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
-      if (user?.rol === 'operador') {
+      if (user?.rol !== 'ADMIN') {
         query = query.eq('usuario_email', user?.email);
       }
       const { data: r } = await query;
@@ -55,11 +57,10 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-  // --- FUNCIÓN DE FILTROS CORREGIDA SOBRE TU ARCHIVO ---
+  // --- LÓGICA DE FILTRO SEGURA (No rompe la página) ---
   const aplicarFiltros = () => {
     let temp = [...reportes];
 
-    // 1. Filtro por Sede (Comprobación de seguridad para evitar errores)
     if (filtroSede) {
       temp = temp.filter(r => 
         (r.sitio_nombre && r.sitio_nombre === filtroSede) || 
@@ -67,10 +68,9 @@ const OroJuezApp = () => {
       );
     }
 
-    // 2. Filtro por Fechas (Validando que r.created_at exista antes de hacer split)
     if (fechaInicio) {
       temp = temp.filter(r => {
-        if (!r.created_at) return false; 
+        if (!r.created_at) return false; // Validación para evitar pantalla en blanco
         const fechaRegistroLiteral = r.created_at.split(' ')[0];
         return fechaRegistroLiteral >= fechaInicio;
       });
@@ -78,7 +78,7 @@ const OroJuezApp = () => {
 
     if (fechaFin) {
       temp = temp.filter(r => {
-        if (!r.created_at) return false;
+        if (!r.created_at) return false; // Validación para evitar pantalla en blanco
         const fechaRegistroLiteral = r.created_at.split(' ')[0];
         return fechaRegistroLiteral <= fechaFin;
       });
@@ -91,9 +91,20 @@ const OroJuezApp = () => {
     e.preventDefault();
     setLoading(true);
     const { email, password } = e.target.elements;
-    const { data, error } = await supabase.from('usuarios').select('*').eq('email', email.value).eq('password', password.value).single();
-    if (data) { setUser(data); setView(data.rol === 'admin' ? 'admin' : 'operador'); }
-    else { alert("Credenciales incorrectas"); }
+    // TABLA SEGÚN TU ESQUEMA: perfiles_usuarios
+    const { data, error } = await supabase
+        .from('perfiles_usuarios')
+        .select('*')
+        .eq('email', email.value)
+        .eq('password', password.value)
+        .single();
+
+    if (data) { 
+        setUser(data); 
+        setView(data.rol === 'ADMIN' ? 'admin' : 'operador'); 
+    } else { 
+        alert("Credenciales incorrectas"); 
+    }
     setLoading(false);
   };
 
@@ -116,10 +127,10 @@ const OroJuezApp = () => {
     setLoading(true);
     const { error } = await supabase.from('reportes_pesaje').insert([{
       usuario_email: user.email,
-      usuario_nombre: user.nombre,
+      nombre_usuario: user.nombre, // Según tu esquema
       sitio_id: user.sitio_id,
       sitio_nombre: sitios.find(s => s.id === user.sitio_id)?.nombre,
-      peso_neto: parseFloat(pesoManual),
+      peso_manual: parseFloat(pesoManual), // Según tu esquema
       observaciones,
       foto_url: photo
     }]);
@@ -156,7 +167,7 @@ const OroJuezApp = () => {
             <div style={{display:'flex', gap:'10px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
               <button onClick={()=>setEditMode(false)} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>REGISTRO</button>
               <button onClick={()=>setEditMode(true)} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>REPORTES</button>
-              {user.rol === 'admin' && <button onClick={()=>setView('config')} style={{backgroundColor:'white', color:'#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>CONFIG</button>}
+              {user.rol === 'ADMIN' && <button onClick={()=>setView('config')} style={{backgroundColor:'white', color:'#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>CONFIG</button>}
             </div>
 
             {!editMode ? (
@@ -197,7 +208,7 @@ const OroJuezApp = () => {
                         const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
                         const hora = r.created_at ? new Date(r.created_at).toLocaleTimeString() : '';
                         const sede = r.sitio_nombre || r.nombre_sitio || '';
-                        return `"${fecha}","${hora}","${sede}","${r.usuario_nombre || ''}",${r.peso_neto || 0},"${(r.observaciones || '').replace(/\n/g, ' ')}"`;
+                        return `"${fecha}","${hora}","${sede}","${r.nombre_usuario || ''}",${r.peso_manual || 0},"${(r.observaciones || '').replace(/\n/g, ' ')}"`;
                     }).join("\n");
                     const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' });
                     const link = document.createElement("a");
@@ -235,7 +246,7 @@ const OroJuezApp = () => {
                         <tr key={i} style={{borderBottom:'1px solid #eee'}}>
                           <td style={{padding:'12px'}}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : 'S/F'} {r.created_at ? new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</td>
                           <td style={{padding:'12px'}}>{r.sitio_nombre || r.nombre_sitio}</td>
-                          <td style={{padding:'12px', textAlign:'right', fontWeight:'bold'}}>{r.peso_neto} kg</td>
+                          <td style={{padding:'12px', textAlign:'right', fontWeight:'bold'}}>{r.peso_manual} kg</td>
                         </tr>
                       ))}
                     </tbody>
@@ -249,7 +260,7 @@ const OroJuezApp = () => {
         {view === 'config' && (
           <div style={{display:'grid', gap:'20px'}}>
             <button onClick={()=>setView('admin')} style={{padding:'10px', backgroundColor:'#666', color:'white', border:'none', borderRadius:'8px'}}>VOLVER</button>
-            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('usuarios').insert([nuevoUsuario]); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'operador', password:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
+            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('perfiles_usuarios').insert([nuevoUsuario]); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'OPERATIVO', password:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
               <h4 style={{color: corporativoRed}}>Nuevo Usuario</h4>
               <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                 <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required />
@@ -269,14 +280,6 @@ const OroJuezApp = () => {
               <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
               <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
             </form>
-            <div className="card">
-              {sitios.map(s => (
-                <div key={s.id} style={{padding:'10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
-                  <span>{s.nombre} ({s.ciudad})</span>
-                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={16}/></button>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
