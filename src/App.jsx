@@ -23,7 +23,7 @@ const OroJuezApp = () => {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  // Ajustado a tu esquema: OPERATIVO
+  // Cambiado 'operador' por 'OPERATIVO' según tu esquema
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'OPERATIVO', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
 
@@ -41,7 +41,7 @@ const OroJuezApp = () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
-      // TABLA SEGÚN TU ESQUEMA
+      // CAMBIO: Tabla 'perfiles_usuarios' según tu esquema
       const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
       setSitios(s || []);
       setUsuarios(u || []);
@@ -57,7 +57,6 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-  // --- LÓGICA DE FILTRO SEGURA (No rompe la página) ---
   const aplicarFiltros = () => {
     let temp = [...reportes];
 
@@ -70,7 +69,7 @@ const OroJuezApp = () => {
 
     if (fechaInicio) {
       temp = temp.filter(r => {
-        if (!r.created_at) return false; // Validación para evitar pantalla en blanco
+        if (!r.created_at) return false;
         const fechaRegistroLiteral = r.created_at.split(' ')[0];
         return fechaRegistroLiteral >= fechaInicio;
       });
@@ -78,7 +77,7 @@ const OroJuezApp = () => {
 
     if (fechaFin) {
       temp = temp.filter(r => {
-        if (!r.created_at) return false; // Validación para evitar pantalla en blanco
+        if (!r.created_at) return false;
         const fechaRegistroLiteral = r.created_at.split(' ')[0];
         return fechaRegistroLiteral <= fechaFin;
       });
@@ -91,19 +90,21 @@ const OroJuezApp = () => {
     e.preventDefault();
     setLoading(true);
     const { email, password } = e.target.elements;
-    // TABLA SEGÚN TU ESQUEMA: perfiles_usuarios
+    
+    // CAMBIO: Se usa la tabla 'perfiles_usuarios' para validar el login
     const { data, error } = await supabase
-        .from('perfiles_usuarios')
-        .select('*')
-        .eq('email', email.value)
-        .eq('password', password.value)
-        .single();
+      .from('perfiles_usuarios')
+      .select('*')
+      .eq('email', email.value)
+      .eq('password', password.value)
+      .single();
 
     if (data) { 
-        setUser(data); 
-        setView(data.rol === 'ADMIN' ? 'admin' : 'operador'); 
+      setUser(data); 
+      // Ajuste de rol según tu esquema (ADMIN / OPERATIVO)
+      setView(data.rol === 'ADMIN' ? 'admin' : 'operador'); 
     } else { 
-        alert("Credenciales incorrectas"); 
+      alert("Credenciales incorrectas"); 
     }
     setLoading(false);
   };
@@ -127,10 +128,10 @@ const OroJuezApp = () => {
     setLoading(true);
     const { error } = await supabase.from('reportes_pesaje').insert([{
       usuario_email: user.email,
-      nombre_usuario: user.nombre, // Según tu esquema
+      nombre_usuario: user.nombre, // Campo según tu esquema
       sitio_id: user.sitio_id,
       sitio_nombre: sitios.find(s => s.id === user.sitio_id)?.nombre,
-      peso_manual: parseFloat(pesoManual), // Según tu esquema
+      peso_manual: parseFloat(pesoManual), // Campo según tu esquema
       observaciones,
       foto_url: photo
     }]);
@@ -272,13 +273,6 @@ const OroJuezApp = () => {
                 </select>
                 <button style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px'}}>CREAR USUARIO</button>
               </div>
-            </form>
-            
-            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
-              <h4 style={{color: corporativoRed}}>Nueva Sede</h4>
-              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
-              <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
-              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
             </form>
           </div>
         )}
