@@ -55,36 +55,18 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-const aplicarFiltros = () => {
+  const aplicarFiltros = () => {
     let temp = [...reportes];
-
-    // 1. Filtro por Sede (Busca en ambas columnas posibles)
     if (filtroSede) {
-      temp = temp.filter(r => 
-        (r.sitio_nombre && r.sitio_nombre === filtroSede) || 
-        (r.nombre_sitio && r.nombre_sitio === filtroSede)
-      );
+      const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
+      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede) || r.nombre_sitio === sedeObj?.nombre);
     }
-
-    // 2. Filtro por Fechas (Comparación literal para evitar desfase UTC/Hora Local)
-    if (fechaInicio) {
-      temp = temp.filter(r => {
-        // created_at viene como "2026-02-12 02:28:07..."
-        // Al hacer split(' ')[0] nos quedamos solo con "2026-02-12"
-        const fechaRegistroLiteral = r.created_at.split(' ')[0];
-        return fechaRegistroLiteral >= fechaInicio;
-      });
-    }
-
-    if (fechaFin) {
-      temp = temp.filter(r => {
-        const fechaRegistroLiteral = r.created_at.split(' ')[0];
-        return fechaRegistroLiteral <= fechaFin;
-      });
-    }
-
+    if (fechaInicio) temp = temp.filter(r => r.created_at >= fechaInicio);
+    if (fechaFin) temp = temp.filter(r => r.created_at <= fechaFin + 'T23:59:59');
     setReportesFiltrados(temp);
   };
+
+  const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
   const exportarExcel = () => {
