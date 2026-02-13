@@ -1,0 +1,9 @@
+EpaOrj.2026 calve base de datos supabase cointrol de pesos.
+Control tanque bascula extractor .. supabase OrojuezApp
+industria.orojuez@gmail.com
+
+
+clave supabase CevenProaceites1971* Controld e asistencia
+Token para Control de asistencia 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
+NEXT_PUBLIC_SUPABASE_URL=https://nxyuiqtpnrejtayvplra.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_PWDI6xFmNXpAqc0w_UuwVQ_J4hdHgj5
