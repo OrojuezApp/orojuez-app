@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
-import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-react';
+import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-center';
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
@@ -23,7 +23,7 @@ const OroJuezApp = () => {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  // Cambiado 'operador' por 'OPERATIVO' según tu esquema
+  // Ajuste de rol por defecto según tu esquema
   const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'OPERATIVO', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
 
@@ -41,7 +41,7 @@ const OroJuezApp = () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
-      // CAMBIO: Tabla 'perfiles_usuarios' según tu esquema
+      // CAMBIO: Se usa la tabla 'perfiles_usuarios' del esquema proporcionado
       const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
       setSitios(s || []);
       setUsuarios(u || []);
@@ -91,7 +91,7 @@ const OroJuezApp = () => {
     setLoading(true);
     const { email, password } = e.target.elements;
     
-    // CAMBIO: Se usa la tabla 'perfiles_usuarios' para validar el login
+    // CAMBIO CRÍTICO: Consulta a 'perfiles_usuarios' para evitar el error de credenciales
     const { data, error } = await supabase
       .from('perfiles_usuarios')
       .select('*')
@@ -101,7 +101,6 @@ const OroJuezApp = () => {
 
     if (data) { 
       setUser(data); 
-      // Ajuste de rol según tu esquema (ADMIN / OPERATIVO)
       setView(data.rol === 'ADMIN' ? 'admin' : 'operador'); 
     } else { 
       alert("Credenciales incorrectas"); 
@@ -128,10 +127,10 @@ const OroJuezApp = () => {
     setLoading(true);
     const { error } = await supabase.from('reportes_pesaje').insert([{
       usuario_email: user.email,
-      nombre_usuario: user.nombre, // Campo según tu esquema
+      nombre_usuario: user.nombre, // Ajuste según esquema
       sitio_id: user.sitio_id,
       sitio_nombre: sitios.find(s => s.id === user.sitio_id)?.nombre,
-      peso_manual: parseFloat(pesoManual), // Campo según tu esquema
+      peso_manual: parseFloat(pesoManual), // Ajuste según esquema
       observaciones,
       foto_url: photo
     }]);
@@ -201,6 +200,7 @@ const OroJuezApp = () => {
               </div>
             ) : (
               <div className="card" style={{padding:'20px'}}>
+                {/* Contenido de reportes mantenido igual */}
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                   <h3 style={{margin:0, color: corporativoRed}}><FileText/> Reportes</h3>
                   <button onClick={() => {
@@ -274,6 +274,14 @@ const OroJuezApp = () => {
                 <button style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px'}}>CREAR USUARIO</button>
               </div>
             </form>
+            <div className="card">
+              {sitios.map(s => (
+                <div key={s.id} style={{padding:'10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+                  <span>{s.nombre} ({s.ciudad})</span>
+                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={16}/></button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
