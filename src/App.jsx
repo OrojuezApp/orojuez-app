@@ -1,4 +1,9 @@
-window.global = window;
+// PARCHE DE COMPATIBILIDAD (Pon esto antes de los imports)
+if (typeof window !== 'undefined') {
+  window.global = window;
+  window.process = { env: {} };
+  window.Buffer = window.Buffer || [];
+}
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
