@@ -36,7 +36,7 @@ const OroJuezApp = () => {
 
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
-  const cargarDatos = async () => {
+const cargarDatos = async () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
@@ -45,14 +45,25 @@ const OroJuezApp = () => {
       setUsuarios(u || []);
 
       let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
-      if (user?.rol === 'operador') {
+      
+      // Si el usuario no es ADMIN, filtramos por su email
+      if (user?.rol !== 'ADMIN') {
         query = query.eq('usuario_email', user?.email);
       }
+      
       const { data: r } = await query;
       setReportes(r || []);
-      setReportesFiltrados(r || []);
-    } catch (err) { console.error("Error:", err); } 
-    finally { setLoading(false); }
+      setReportesFiltrados(r || []); // Esto asegura que al entrar veas todo
+      
+      // Limpiamos los filtros para que no oculten datos al recargar
+      setFiltroSede('');
+      setFechaInicio('');
+      setFechaFin('');
+    } catch (err) { 
+      console.error("Error cargando datos:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
 const aplicarFiltros = () => {
