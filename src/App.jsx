@@ -83,9 +83,10 @@ const aplicarFiltros = () => {
     setReportesFiltrados(temp);
   };
 
-{/* BOTÓN TEMPORAL DE RESPALDO - BORRAR DESPUÉS DE USAR */}
+{/* BOTÓN DE RESPALDO DE EMERGENCIA */}
 <button 
   onClick={async () => {
+    alert("Iniciando descarga... por favor espera unos segundos sin cerrar la App.");
     setLoading(true);
     try {
       const { data, error } = await supabase.from('reportes_pesaje').select('*');
@@ -94,32 +95,35 @@ const aplicarFiltros = () => {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "respaldo_fotos_pesaje_" + new Date().toISOString() + ".json");
+      downloadAnchorNode.setAttribute("download", "RESPALDO_TOTAL_PESAJES.json");
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
       
-      alert("¡Respaldo completado! Guarda bien el archivo descargado.");
+      alert("✅ ¡Respaldo descargado con éxito! Verifica el archivo en tu carpeta de Descargas.");
     } catch (err) {
-      alert("Error en el respaldo: " + err.message);
+      alert("❌ Error: " + err.message);
     } finally {
       setLoading(false);
     }
   }}
   style={{
-    backgroundColor: '#28a745',
-    color: 'white',
-    padding: '10px',
-    borderRadius: '5px',
-    marginTop: '10px',
+    backgroundColor: '#ffc107',
+    color: 'black',
+    padding: '8px 15px',
+    borderRadius: '8px',
+    marginLeft: '10px',
     cursor: 'pointer',
-    width: '100%',
-    fontWeight: 'bold'
+    border: 'none',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    zIndex: 9999
   }}
 >
-  💾 DESCARGAR TODO EL RESPALDO (JSON)
+  💾 RESPALDAR TODO
 </button>
-
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
