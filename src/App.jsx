@@ -46,19 +46,22 @@ const cargarDatos = async () => {
 
       let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
       
-      // Si el usuario no es ADMIN, filtramos por su email
+      // Filtro de seguridad: Solo el ADMIN ve todo.
       if (user?.rol !== 'ADMIN') {
         query = query.eq('usuario_email', user?.email);
       }
       
       const { data: r } = await query;
-      setReportes(r || []);
-      setReportesFiltrados(r || []); // Esto asegura que al entrar veas todo
       
-      // Limpiamos los filtros para que no oculten datos al recargar
+      // FORZAMOS a que los reportes se muestren de inmediato al cargar
+      setReportes(r || []);
+      setReportesFiltrados(r || []); 
+      
+      // Reseteamos visualmente los filtros para que no estorben
       setFiltroSede('');
       setFechaInicio('');
       setFechaFin('');
+      
     } catch (err) { 
       console.error("Error cargando datos:", err); 
     } finally { 
