@@ -83,6 +83,43 @@ const aplicarFiltros = () => {
     setReportesFiltrados(temp);
   };
 
+{/* BOTÓN TEMPORAL DE RESPALDO - BORRAR DESPUÉS DE USAR */}
+<button 
+  onClick={async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('reportes_pesaje').select('*');
+      if (error) throw error;
+      
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "respaldo_fotos_pesaje_" + new Date().toISOString() + ".json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      
+      alert("¡Respaldo completado! Guarda bien el archivo descargado.");
+    } catch (err) {
+      alert("Error en el respaldo: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }}
+  style={{
+    backgroundColor: '#28a745',
+    color: 'white',
+    padding: '10px',
+    borderRadius: '5px',
+    marginTop: '10px',
+    cursor: 'pointer',
+    width: '100%',
+    fontWeight: 'bold'
+  }}
+>
+  💾 DESCARGAR TODO EL RESPALDO (JSON)
+</button>
+
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
