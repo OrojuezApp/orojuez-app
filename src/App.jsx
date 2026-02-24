@@ -69,7 +69,7 @@ const OroJuezApp = () => {
       setSitios(s || []);
       setUsuarios(u || []);
 
-      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false }).limit(20);
+      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false }).limit(50);
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
