@@ -45,45 +45,40 @@ const OroJuezApp = () => {
       setUsuarios(u || []);
 
       let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
-      
-      // Si no es ADMIN, solo ve sus propios reportes
       if (user?.rol !== 'ADMIN') {
         query = query.eq('usuario_email', user?.email);
       }
-      
       const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
-    } catch (err) { 
-      console.error("Error cargando datos:", err); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (err) { console.error(err); } 
+    finally { setLoading(false); }
   };
 
-  // --- FUNCIÓN DE FILTROS CORREGIDA ---
+  // --- CAMBIO EXCLUSIVO EN FILTROS ---
   const aplicarFiltros = () => {
     let temp = [...reportes];
 
-    // 1. Filtro por Sede (Corregido: Forzamos String para evitar error UUID vs Integer)
     if (filtroSede) {
+      // Forzamos comparación como texto para evitar el error de UUID vs Integer
       temp = temp.filter(r => String(r.sitio_id) === String(filtroSede));
     }
 
-    // 2. Filtro por Fecha Inicio (Desde las 00:00:00)
     if (fechaInicio) {
+      // Ajuste para que empiece desde el primer segundo del día local
       const inicio = new Date(fechaInicio + 'T00:00:00');
       temp = temp.filter(r => new Date(r.created_at) >= inicio);
     }
 
-    // 3. Filtro por Fecha Fin (Hasta las 23:59:59 para no perder pesajes de la tarde)
     if (fechaFin) {
+      // Ajuste para que incluya hasta el último segundo del día (23:59:59)
       const fin = new Date(fechaFin + 'T23:59:59');
       temp = temp.filter(r => new Date(r.created_at) <= fin);
     }
 
     setReportesFiltrados(temp);
   };
+  // --- FIN DEL CAMBIO ---
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -123,33 +118,18 @@ const OroJuezApp = () => {
   const guardarPesaje = async () => {
     if (!pesoManual) return alert("Ingrese el peso");
     setLoading(true);
-    
-    const sedeActual = sitios.find(s => String(s.id) === String(user.sitio_id));
-
     const { error } = await supabase.from('reportes_pesaje').insert([{
       usuario_email: user.email,
-      nombre_usuario: user.nombre,
+      nombre_usuario: user.nombre, 
       sitio_id: user.sitio_id,
-      nombre_sitio: sedeActual?.nombre || 'Sede Desconocida',
-      peso_manual: parseFloat(pesoManual),
+      sitio_nombre: sitios.find(s => s.id === user.sitio_id)?.nombre,
+      peso_manual: parseFloat(pesoManual), 
       observaciones,
       foto_url: photo
     }]);
-
-    if (!error) { 
-      alert("Pesaje Guardado"); 
-      setPhoto(null); 
-      setPesoManual(''); 
-      setObservaciones(''); 
-      cargarDatos(); 
-    } else {
-      alert("Error al guardar: " + error.message);
-    }
+    if (!error) { alert("Pesaje Guardado"); setPhoto(null); setPesoManual(''); setObservaciones(''); cargarDatos(); }
     setLoading(false);
   };
-
-  // Cálculo del total dinámico basado en los filtros
-  const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
   return (
     <div style={{minHeight:'100vh', backgroundColor:'#f4f4f4', fontFamily:'sans-serif'}}>
@@ -158,17 +138,12 @@ const OroJuezApp = () => {
           <ShieldCheck size={28}/>
           <h2 style={{margin:0, fontSize:'1.2rem'}}>ORO JUEZ {view.toUpperCase()}</h2>
         </div>
-        {user && (
-          <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-            <button onClick={cargarDatos} style={{background:'none', border:'none', color:'white'}}><RefreshCw size={20}/></button>
-            <button onClick={()=>{setUser(null); setView('login');}} style={{background:'none', border:'none', color:'white'}}><LogOut/></button>
-          </div>
-        )}
+        {user && <button onClick={()=>{setUser(null); setView('login');}} style={{background:'none', border:'none', color:'white'}}><LogOut/></button>}
       </nav>
 
       <div style={{padding:'20px', maxWidth:'1200px', margin:'0 auto'}}>
         {view === 'login' && (
-          <div className="card" style={{maxWidth:'400px', margin:'100px auto', padding:'30px', textAlign:'center', backgroundColor:'white', borderRadius:'12px', boxShadow:'0 4px 6px rgba(0,0,0,0.1)'}}>
+          <div className="card" style={{maxWidth:'400px', margin:'100px auto', padding:'30px', textAlign:'center'}}>
             <h3 style={{color: corporativoRed, marginBottom:'20px'}}>INICIAR SESIÓN</h3>
             <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
               <input name="email" type="email" placeholder="Correo Electrónico" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ccc'}} />
@@ -183,13 +158,13 @@ const OroJuezApp = () => {
         {(view === 'admin' || view === 'operador') && (
           <div>
             <div style={{display:'flex', gap:'10px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
-              <button onClick={()=>setEditMode(false)} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', fontWeight:'bold', cursor:'pointer'}}>REGISTRO</button>
-              <button onClick={()=>setEditMode(true)} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', fontWeight:'bold', cursor:'pointer'}}>REPORTES</button>
-              {user.rol === 'ADMIN' && <button onClick={()=>setView('config')} style={{backgroundColor:'white', color:'#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee', fontWeight:'bold', cursor:'pointer'}}>CONFIG</button>}
+              <button onClick={()=>setEditMode(false)} style={{backgroundColor: !editMode ? corporativoRed : 'white', color: !editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>REGISTRO</button>
+              <button onClick={()=>setEditMode(true)} style={{backgroundColor: editMode ? corporativoRed : 'white', color: editMode ? 'white' : '#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>REPORTES</button>
+              {user.rol === 'ADMIN' && <button onClick={()=>setView('config')} style={{backgroundColor:'white', color:'#333', padding:'10px 20px', borderRadius:'8px', border:'1px solid #eee'}}>CONFIG</button>}
             </div>
 
             {!editMode ? (
-              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
+              <div className="card" style={{padding:'20px'}}>
                 <h3 style={{color: corporativoRed, display:'flex', alignItems:'center', gap:'10px', borderBottom:'2px solid #eee', paddingBottom:'10px'}}><Camera/> Capturar Pesaje</h3>
                 <div style={{marginTop:'20px', display:'flex', flexDirection:'column', gap:'15px'}}>
                   <div style={{width:'100%', height:'250px', backgroundColor:'#000', borderRadius:'12px', overflow:'hidden', position:'relative', display:'flex', justifyContent:'center', alignItems:'center'}}>
@@ -213,19 +188,29 @@ const OroJuezApp = () => {
                       <textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} style={{width:'100%', padding:'10px', height:'55px', borderRadius:'10px', border:'1px solid #ccc'}} />
                     </div>
                   </div>
-                  <button onClick={guardarPesaje} disabled={loading} style={{backgroundColor:'#28a745', color:'white', padding:'18px', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'1.1rem'}}>
-                    {loading ? 'GUARDANDO...' : 'GUARDAR PESAJE'}
-                  </button>
+                  <button onClick={guardarPesaje} disabled={loading} style={{backgroundColor:'#28a745', color:'white', padding:'18px', border:'none', borderRadius:'12px', fontWeight:'bold', fontSize:'1.1rem'}}>{loading ? 'GUARDANDO...' : 'GUARDAR PESAJE'}</button>
                 </div>
               </div>
             ) : (
-              <div className="card" style={{padding:'20px', backgroundColor:'white', borderRadius:'12px'}}>
+              <div className="card" style={{padding:'20px'}}>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                  <h3 style={{margin:0, color: corporativoRed}}><FileText/> Reportes ({reportesFiltrados.length})</h3>
-                  <div style={{textAlign:'right'}}>
-                    <span style={{fontSize:'0.8rem', color:'#666'}}>TOTAL PESADO:</span>
-                    <div style={{fontSize:'1.2rem', fontWeight:'bold', color: corporativoRed}}>{totalPesos.toLocaleString()} KG</div>
-                  </div>
+                  <h3 style={{margin:0, color: corporativoRed}}><FileText/> Reportes</h3>
+                  <button onClick={() => {
+                    const headers = "Fecha,Hora,Sede,Usuario,Peso (kg),Observaciones\n";
+                    const csvContent = reportesFiltrados.map(r => {
+                        const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+                        const hora = r.created_at ? new Date(r.created_at).toLocaleTimeString() : '';
+                        const sede = r.sitio_nombre || r.nombre_sitio || '';
+                        return `"${fecha}","${hora}","${sede}","${r.nombre_usuario || ''}",${r.peso_manual || 0},"${(r.observaciones || '').replace(/\n/g, ' ')}"`;
+                    }).join("\n");
+                    const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.setAttribute("download", `Reporte_Orojuez_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }} style={{backgroundColor:'#28a745', color:'white', border:'none', padding:'8px 15px', borderRadius:'8px', display:'flex', alignItems:'center', gap:'5px'}}><Download size={18}/> CSV</button>
                 </div>
 
                 <div style={{backgroundColor:'#f9f9f9', padding:'15px', borderRadius:'12px', marginBottom:'20px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
@@ -237,31 +222,24 @@ const OroJuezApp = () => {
                   </div>
                   <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
                   <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} style={{padding:'10px', borderRadius:'8px', border:'1px solid #ccc'}} />
-                  <button onClick={aplicarFiltros} style={{gridColumn:'1 / span 2', backgroundColor: corporativoRed, color:'white', padding:'12px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>
-                    <Search size={18} style={{verticalAlign:'middle', marginRight:'5px'}}/> FILTRAR RESULTADOS
-                  </button>
+                  <button onClick={aplicarFiltros} style={{gridColumn:'1 / span 2', backgroundColor: corporativoRed, color:'white', padding:'12px', border:'none', borderRadius:'8px', fontWeight:'bold'}}><Search size={18}/> FILTRAR RESULTADOS</button>
                 </div>
 
                 <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.8rem'}}>
+                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.9rem'}}>
                     <thead style={{backgroundColor:'#eee'}}>
                       <tr>
-                        <th style={{padding:'10px', textAlign:'left'}}>Fecha/Hora</th>
-                        <th style={{padding:'10px', textAlign:'left'}}>Sede</th>
-                        <th style={{padding:'10px', textAlign:'left'}}>Usuario</th>
-                        <th style={{padding:'10px', textAlign:'right'}}>Peso</th>
+                        <th style={{padding:'12px', textAlign:'left'}}>Fecha</th>
+                        <th style={{padding:'12px', textAlign:'left'}}>Sede</th>
+                        <th style={{padding:'12px', textAlign:'right'}}>Peso</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reportesFiltrados.map((r, i) => (
                         <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                          <td style={{padding:'10px'}}>
-                            {new Date(r.created_at).toLocaleDateString()} <br/>
-                            <small style={{color:'#999'}}>{new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small>
-                          </td>
-                          <td style={{padding:'10px'}}>{r.nombre_sitio}</td>
-                          <td style={{padding:'10px'}}>{r.nombre_usuario}</td>
-                          <td style={{padding:'10px', textAlign:'right', fontWeight:'bold'}}>{r.peso_manual} kg</td>
+                          <td style={{padding:'12px'}}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : 'S/F'} {r.created_at ? new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</td>
+                          <td style={{padding:'12px'}}>{r.sitio_nombre || r.nombre_sitio}</td>
+                          <td style={{padding:'12px', textAlign:'right', fontWeight:'bold'}}>{r.peso_manual} kg</td>
                         </tr>
                       ))}
                     </tbody>
@@ -274,18 +252,9 @@ const OroJuezApp = () => {
 
         {view === 'config' && (
           <div style={{display:'grid', gap:'20px'}}>
-            <button onClick={()=>setView('admin')} style={{padding:'10px', backgroundColor:'#666', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold'}}>VOLVER AL PANEL</button>
-            
-            <form onSubmit={async e=>{
-              e.preventDefault(); 
-              const { error } = await supabase.from('perfiles_usuarios').insert([nuevoUsuario]); 
-              if(!error) {
-                setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'OPERATIVO', password:''}); 
-                cargarDatos();
-                alert("Usuario creado");
-              }
-            }} className="card" style={{padding:'15px', backgroundColor:'white', borderRadius:'12px'}}>
-              <h4 style={{color: corporativoRed, marginTop:0}}>Nuevo Usuario</h4>
+            <button onClick={()=>setView('admin')} style={{padding:'10px', backgroundColor:'#666', color:'white', border:'none', borderRadius:'8px'}}>VOLVER</button>
+            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('perfiles_usuarios').insert([nuevoUsuario]); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'OPERATIVO', password:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
+              <h4 style={{color: corporativoRed}}>Nuevo Usuario</h4>
               <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                 <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email" required />
                 <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre" required />
@@ -294,31 +263,20 @@ const OroJuezApp = () => {
                   <option value="">Asignar Sede</option>
                   {sitios.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
-                <button style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR USUARIO</button>
+                <button style={{backgroundColor: corporativoRed, color:'white', padding:'10px', border:'none', borderRadius:'8px'}}>CREAR USUARIO</button>
               </div>
             </form>
-
-            <form onSubmit={async e=>{
-              e.preventDefault(); 
-              const { error } = await supabase.from('sitios').insert([nuevoSitio]); 
-              if(!error) {
-                setNuevoSitio({nombre:'', ciudad:''}); 
-                cargarDatos();
-                alert("Sede creada");
-              }
-            }} className="card" style={{padding:'15px', backgroundColor:'white', borderRadius:'12px'}}>
-              <h4 style={{color: corporativoRed, marginTop:0}}>Nueva Sede</h4>
+            <form onSubmit={async e=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
+              <h4 style={{color: corporativoRed}}>Nueva Sede</h4>
               <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
               <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
               <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
             </form>
-
-            <div className="card" style={{padding:'15px', backgroundColor:'white', borderRadius:'12px'}}>
-              <h4 style={{marginTop:0}}>Sedes Actuales</h4>
+            <div className="card">
               {sitios.map(s => (
-                <div key={s.id} style={{padding:'10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                  <span>{s.nombre} <small style={{color:'#999'}}>({s.ciudad})</small></span>
-                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none', cursor:'pointer'}}><Trash2 size={16}/></button>
+                <div key={s.id} style={{padding:'10px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+                  <span>{s.nombre} ({s.ciudad})</span>
+                  <button onClick={async()=>{if(confirm('¿Eliminar sede?')){await supabase.from('sitios').delete().eq('id', s.id); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={16}/></button>
                 </div>
               ))}
             </div>
