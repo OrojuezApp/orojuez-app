@@ -2,6 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
 import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-react';
+import AWS from 'aws-sdk'; // <--- Añade esta línea
+
+// --- PEGA ESTO AQUÍ (FUERA DE LA FUNCIÓN) ---
+const s3 = new AWS.S3({
+  accessKeyId: 'AKIA2B4GHQEVA6IRWZ44',
+  secretAccessKey: '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',
+  region: 'us-east-2'
+});
+// --------------------------------------------
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
