@@ -44,7 +44,8 @@ const cargarDatos = async () => {
       setSitios(s || []);
       setUsuarios(u || []);
 
-      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false }).limit(20);
+	
       
       // Filtro de seguridad: Solo el ADMIN ve todo.
       if (user?.rol !== 'ADMIN') {
