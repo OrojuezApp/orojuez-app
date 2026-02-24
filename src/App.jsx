@@ -2,6 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
 import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-react';
+if (typeof global === 'undefined') {
+  window.global = window;
+}
+import AWS from 'aws-sdk';
 import AWS from 'aws-sdk'; // <--- Añade esta línea
 
 // --- PEGA ESTO AQUÍ (FUERA DE LA FUNCIÓN) ---
