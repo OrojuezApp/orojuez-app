@@ -34,6 +34,31 @@ const OroJuezApp = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // --- FUNCIÓN DE EXPORTACIÓN (LÓGICA) ---
+  const exportarTodoJSON = async () => {
+    setLoading(true);
+    try {
+      alert("Iniciando descarga completa. Por favor, espera a que el navegador genere el archivo.");
+      const { data, error } = await supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `RESPALDO_SITIO_PESAJE_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert("✅ Respaldo descargado con éxito.");
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
   const cargarDatos = async () => {
@@ -55,100 +80,40 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-const aplicarFiltros = () => {
+  const aplicarFiltros = () => {
     let temp = [...reportes];
-
-    // 1. Filtro por Sede
     if (filtroSede) {
       const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
-      temp = temp.filter(r => 
-        String(r.sitio_id) === String(filtroSede) || 
-        r.nombre_sitio === sedeObj?.nombre
-      );
+      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede) || r.nombre_sitio === sedeObj?.nombre);
     }
-
-    // 2. Filtro por Fecha (Ajuste de Zona Horaria)
     if (fechaInicio) {
-      // Creamos la fecha de inicio a las 00:00:00 de ese día
       const inicio = new Date(fechaInicio + 'T00:00:00');
       temp = temp.filter(r => new Date(r.created_at) >= inicio);
     }
-
     if (fechaFin) {
-      // Creamos la fecha de fin a las 23:59:59 de ese día para incluir todo el día
       const fin = new Date(fechaFin + 'T23:59:59');
       temp = temp.filter(r => new Date(r.created_at) <= fin);
     }
-
     setReportesFiltrados(temp);
   };
 
-{/* BOTÓN DE RESPALDO DE EMERGENCIA */}
-<button 
-  onClick={async () => {
-    alert("Iniciando descarga... por favor espera unos segundos sin cerrar la App.");
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.from('reportes_pesaje').select('*');
-      if (error) throw error;
-      
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
-      const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", "RESPALDO_TOTAL_PESAJES.json");
-      document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
-      
-      alert("✅ ¡Respaldo descargado con éxito! Verifica el archivo en tu carpeta de Descargas.");
-    } catch (err) {
-      alert("❌ Error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }}
-  style={{
-    backgroundColor: '#ffc107',
-    color: 'black',
-    padding: '8px 15px',
-    borderRadius: '8px',
-    marginLeft: '10px',
-    cursor: 'pointer',
-    border: 'none',
-    fontWeight: 'bold',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    zIndex: 9999
-  }}
->
-  💾 RESPALDAR TODO
-</button>
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
-  // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
   const exportarExcel = () => {
     if (reportesFiltrados.length === 0) return alert("No hay datos para exportar");
-
     const encabezados = ["Fecha", "Hora", "Sede", "Usuario", "Peso (kg)", "Observaciones"];
-    
     const filas = reportesFiltrados.map(r => [
       new Date(r.created_at).toLocaleDateString(),
       new Date(r.created_at).toLocaleTimeString(),
       `"${r.nombre_sitio}"`, 
       `"${r.nombre_usuario}"`,
       r.peso_manual,
-      `"${(r.observaciones || '').replace(/"/g, '""')}"` // Escapar comillas dobles internas
+      `"${(r.observaciones || '').replace(/"/g, '""')}"`
     ]);
-
-    // Añadir BOM para que Excel detecte UTF-8 (acentos y ñ)
     const CSV_IDENTIFIER = "\uFEFF"; 
-    let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" 
-      + filas.map(e => e.join(",")).join("\n");
-
+    let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" + filas.map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `Reporte_Orojuez_${new Date().toISOString().split('T')[0]}.csv`);
@@ -250,6 +215,15 @@ const aplicarFiltros = () => {
         .miniatura-reporte { width: 70px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: transform 0.2s; }
         .miniatura-reporte:hover { transform: scale(1.1); }
       `}</style>
+
+      {/* BOTÓN DE RESPALDO VISIBLE SOLO PARA ADMINS */}
+      {['admin', 'administrador'].includes(user?.rol?.toLowerCase()) && (
+        <div className="no-print" style={{ padding: '10px' }}>
+          <button onClick={exportarTodoJSON} style={{ width: '100%', backgroundColor: '#000', color: '#fff', padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <Download size={20} /> DESCARGAR RESPALDO TOTAL (JSON)
+          </button>
+        </div>
+      )}
 
       <div className="navbar no-print" style={{backgroundColor: corporativoRed, display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
         <span style={{fontSize:'12px', color:'white', fontWeight:'bold'}}>{user?.nombre} | {user?.rol?.toUpperCase()}</span>
@@ -381,7 +355,6 @@ const aplicarFiltros = () => {
           </div>
         )}
 
-        {/* MODULOS DE ADMIN */}
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
