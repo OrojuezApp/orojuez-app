@@ -1,23 +1,7 @@
-// PARCHE DE COMPATIBILIDAD (Pon esto antes de los imports)
-if (typeof window !== 'undefined') {
-  window.global = window;
-  window.process = { env: {} };
-  window.Buffer = window.Buffer || [];
-}
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
 import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-react';
-import AWS from 'aws-sdk'; 
-
-// Configuración de Amazon S3 para Ohio
-const s3 = new AWS.S3({
-  accessKeyId: 'AKIA2B4GHQEVA6IRWZ44',
-  secretAccessKey: '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',
-  region: 'us-east-2'
-});
-
-// ... aquí sigue el resto de tu código (export default function App...)
 
 const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
@@ -50,31 +34,6 @@ const OroJuezApp = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // --- FUNCIÓN DE EXPORTACIÓN (LÓGICA) ---
-  const exportarTodoJSON = async () => {
-    setLoading(true);
-    try {
-      alert("Iniciando descarga completa. Por favor, espera a que el navegador genere el archivo.");
-      const { data, error } = await supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `RESPALDO_SITIO_PESAJE_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      alert("✅ Respaldo descargado con éxito.");
-    } catch (err) {
-      alert("Error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
   const cargarDatos = async () => {
@@ -85,7 +44,7 @@ const OroJuezApp = () => {
       setSitios(s || []);
       setUsuarios(u || []);
 
-      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false }).limit(150);
+      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
@@ -96,40 +55,59 @@ const OroJuezApp = () => {
     finally { setLoading(false); }
   };
 
-  const aplicarFiltros = () => {
+const aplicarFiltros = () => {
     let temp = [...reportes];
+
+    // 1. Filtro por Sede
     if (filtroSede) {
       const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
-      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede) || r.nombre_sitio === sedeObj?.nombre);
+      temp = temp.filter(r => 
+        String(r.sitio_id) === String(filtroSede) || 
+        r.nombre_sitio === sedeObj?.nombre
+      );
     }
+
+    // 2. Filtro por Fecha (Ajuste de Zona Horaria)
     if (fechaInicio) {
+      // Creamos la fecha de inicio a las 00:00:00 de ese día
       const inicio = new Date(fechaInicio + 'T00:00:00');
       temp = temp.filter(r => new Date(r.created_at) >= inicio);
     }
+
     if (fechaFin) {
+      // Creamos la fecha de fin a las 23:59:59 de ese día para incluir todo el día
       const fin = new Date(fechaFin + 'T23:59:59');
       temp = temp.filter(r => new Date(r.created_at) <= fin);
     }
+
     setReportesFiltrados(temp);
   };
 
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
+  // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
   const exportarExcel = () => {
     if (reportesFiltrados.length === 0) return alert("No hay datos para exportar");
+
     const encabezados = ["Fecha", "Hora", "Sede", "Usuario", "Peso (kg)", "Observaciones"];
+    
     const filas = reportesFiltrados.map(r => [
       new Date(r.created_at).toLocaleDateString(),
       new Date(r.created_at).toLocaleTimeString(),
       `"${r.nombre_sitio}"`, 
       `"${r.nombre_usuario}"`,
       r.peso_manual,
-      `"${(r.observaciones || '').replace(/"/g, '""')}"`
+      `"${(r.observaciones || '').replace(/"/g, '""')}"` // Escapar comillas dobles internas
     ]);
+
+    // Añadir BOM para que Excel detecte UTF-8 (acentos y ñ)
     const CSV_IDENTIFIER = "\uFEFF"; 
-    let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" + filas.map(e => e.join(",")).join("\n");
+    let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" 
+      + filas.map(e => e.join(",")).join("\n");
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `Reporte_Orojuez_${new Date().toISOString().split('T')[0]}.csv`);
@@ -231,15 +209,6 @@ const OroJuezApp = () => {
         .miniatura-reporte { width: 70px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: transform 0.2s; }
         .miniatura-reporte:hover { transform: scale(1.1); }
       `}</style>
-
-      {/* BOTÓN DE RESPALDO VISIBLE SOLO PARA ADMINS */}
-      {['admin', 'administrador'].includes(user?.rol?.toLowerCase()) && (
-        <div className="no-print" style={{ padding: '10px' }}>
-          <button onClick={exportarTodoJSON} style={{ width: '100%', backgroundColor: '#000', color: '#fff', padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-            <Download size={20} /> DESCARGAR RESPALDO TOTAL (JSON)
-          </button>
-        </div>
-      )}
 
       <div className="navbar no-print" style={{backgroundColor: corporativoRed, display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
         <span style={{fontSize:'12px', color:'white', fontWeight:'bold'}}>{user?.nombre} | {user?.rol?.toUpperCase()}</span>
@@ -371,6 +340,7 @@ const OroJuezApp = () => {
           </div>
         )}
 
+        {/* MODULOS DE ADMIN */}
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
