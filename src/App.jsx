@@ -16,6 +16,8 @@ const OroJuezApp = () => {
   const [reportesFiltrados, setReportesFiltrados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [reporteConsolidado, setReporteConsolidado] = useState([]);
+  const [consolidadoFiltrado, setConsolidadoFiltrado] = useState([]);
   
   const corporativoRed = "#b30000";
 
@@ -44,14 +46,12 @@ const cargarDatos = async () => {
       setSitios(s || []);
       setUsuarios(u || []);
 
-      // Iniciamos la consulta de reportes
       let query = supabase
         .from('reportes_pesaje')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(150); // <--- LIMITAMOS AQUÍ A 50 REGISTROS
+        .limit(150); 
 
-      // Si es operador, filtramos por su email (se mantiene tu lógica)
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
@@ -66,10 +66,32 @@ const cargarDatos = async () => {
     }
   };
 
+const cargarReporteConsolidado = async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('reportes_pesaje')
+        .select('created_at, nombre_sitio, peso_manual, nombre_usuario, observaciones, sitio_id')
+        .order('created_at', { ascending: false });
+
+      if (user?.rol === 'operador') {
+        query = query.eq('usuario_email', user?.email);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setReporteConsolidado(data || []);
+      setConsolidadoFiltrado(data || []);
+      setView('reporte_gerencial'); 
+    } catch (err) {
+      alert("Error cargando reporte: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 const aplicarFiltros = () => {
     let temp = [...reportes];
-
-    // 1. Filtro por Sede
     if (filtroSede) {
       const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
       temp = temp.filter(r => 
@@ -77,48 +99,55 @@ const aplicarFiltros = () => {
         r.nombre_sitio === sedeObj?.nombre
       );
     }
-
-    // 2. Filtro por Fecha (Ajuste de Zona Horaria)
     if (fechaInicio) {
-      // Creamos la fecha de inicio a las 00:00:00 de ese día
       const inicio = new Date(fechaInicio + 'T00:00:00');
       temp = temp.filter(r => new Date(r.created_at) >= inicio);
     }
-
     if (fechaFin) {
-      // Creamos la fecha de fin a las 23:59:59 de ese día para incluir todo el día
       const fin = new Date(fechaFin + 'T23:59:59');
       temp = temp.filter(r => new Date(r.created_at) <= fin);
     }
-
     setReportesFiltrados(temp);
+  };
+
+const aplicarFiltrosConsolidado = () => {
+    let temp = [...reporteConsolidado];
+    if (filtroSede) {
+      const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
+      temp = temp.filter(r => 
+        String(r.sitio_id) === String(filtroSede) || 
+        r.nombre_sitio === sedeObj?.nombre
+      );
+    }
+    if (fechaInicio) {
+      const inicio = new Date(fechaInicio + 'T00:00:00');
+      temp = temp.filter(r => new Date(r.created_at) >= inicio);
+    }
+    if (fechaFin) {
+      const fin = new Date(fechaFin + 'T23:59:59');
+      temp = temp.filter(r => new Date(r.created_at) <= fin);
+    }
+    setConsolidadoFiltrado(temp);
   };
 
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
-  // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
   const exportarExcel = () => {
     if (reportesFiltrados.length === 0) return alert("No hay datos para exportar");
-
     const encabezados = ["Fecha", "Hora", "Sede", "Usuario", "Peso (kg)", "Observaciones"];
-    
     const filas = reportesFiltrados.map(r => [
       new Date(r.created_at).toLocaleDateString(),
       new Date(r.created_at).toLocaleTimeString(),
       `"${r.nombre_sitio}"`, 
       `"${r.nombre_usuario}"`,
       r.peso_manual,
-      `"${(r.observaciones || '').replace(/"/g, '""')}"` // Escapar comillas dobles internas
+      `"${(r.observaciones || '').replace(/"/g, '""')}"`
     ]);
-
-    // Añadir BOM para que Excel detecte UTF-8 (acentos y ñ)
     const CSV_IDENTIFIER = "\uFEFF"; 
     let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" 
       + filas.map(e => e.join(",")).join("\n");
-
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `Reporte_Orojuez_${new Date().toISOString().split('T')[0]}.csv`);
@@ -231,6 +260,19 @@ const aplicarFiltros = () => {
 
       <div className="no-print" style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto', paddingBottom:'5px'}}>
         <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?`2px solid ${corporativoRed}`:'none'}}>CAPTURA</button>
+        <button 
+          onClick={cargarReporteConsolidado} 
+          className="card" 
+          style={{
+            padding:'10px', 
+            flex:'1', 
+            minWidth:'80px', 
+            fontSize:'11px', 
+            border: view === 'reporte_gerencial' ? `2px solid ${corporativoRed}` : 'none'
+          }}
+        >
+          COTEJO
+        </button>
         <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='historial'?`2px solid ${corporativoRed}`:'none'}}>HISTORIAL</button>
         {['admin', 'administrador', 'auditor'].includes(user?.rol?.toLowerCase()) && (
           <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='reportes'?`2px solid ${corporativoRed}`:'none'}}>REPORTES</button>
@@ -351,7 +393,69 @@ const aplicarFiltros = () => {
           </div>
         )}
 
-        {/* MODULOS DE ADMIN */}
+        {view === 'reporte_gerencial' && (
+          <div style={{padding:'5px'}}>
+            {/* Filtros para Cotejo */}
+            <div className="card no-print" style={{padding:'10px', marginBottom:'10px'}}>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
+                  <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} />
+                  <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} />
+                  <select value={filtroSede} onChange={e=>setFiltroSede(e.target.value)}>
+                    <option value="">Todas las Sedes</option>
+                    {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+                  <button onClick={aplicarFiltrosConsolidado} style={{backgroundColor: corporativoRed, color:'white', border:'none', borderRadius:'5px'}}><Search size={14}/></button>
+                </div>
+            </div>
+
+            <div style={{display:'flex', gap:'5px', marginBottom:'10px'}}>
+               <button onClick={() => window.print()} style={{flex:1, backgroundColor: corporativoRed, color:'white', border:'none', padding:'10px', borderRadius:'8px', fontWeight:'bold', fontSize:'11px'}}>IMPRIMIR PDF</button>
+               <button onClick={() => {
+                 const header = "FECHA,SEDE,PESO,OBSERVACIONES\n";
+                 const rows = consolidadoFiltrado.map(r => `${new Date(r.created_at).toLocaleDateString()},${r.nombre_sitio},${r.peso_manual},${r.observaciones || ''}`).join("\n");
+                 const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+                 const link = document.createElement("a");
+                 link.href = URL.createObjectURL(blob);
+                 link.setAttribute("download", "cotejo_pesajes.csv");
+                 document.body.appendChild(link);
+                 link.click();
+                 document.body.removeChild(link);
+               }} style={{flex:1, backgroundColor: '#1D6F42', color:'white', border:'none', padding:'10px', borderRadius:'8px', fontWeight:'bold', fontSize:'11px'}}>EXPORTAR EXCEL</button>
+            </div>
+
+            <div className="card" style={{padding:'15px', marginBottom:'15px', borderLeft:`5px solid ${corporativoRed}`, backgroundColor:'#fff'}}>
+              <p style={{fontSize:'10px', color:'#666', fontWeight:'bold', margin:0}}>SUMATORIA TOTAL DE PESOS (COTEJO)</p>
+              <h2 style={{margin:0, color: corporativoRed}}>
+                {consolidadoFiltrado.reduce((acc, r) => acc + (Number(r.peso_manual) || 0), 0).toLocaleString()} kg
+              </h2>
+              <small style={{color:'#999'}}>{consolidadoFiltrado.length} registros en total</small>
+            </div>
+
+            <div className="card" style={{padding:'0', overflowX:'auto', backgroundColor:'#fff'}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:'11px'}}>
+                <thead>
+                  <tr style={{backgroundColor:'#f8f8f8', borderBottom:'1px solid #eee'}}>
+                    <th style={{padding:'10px', textAlign:'left'}}>FECHA</th>
+                    <th style={{padding:'10px', textAlign:'left'}}>SEDE</th>
+                    <th style={{padding:'10px', textAlign:'right'}}>PESO</th>
+                    <th style={{padding:'10px', textAlign:'left'}}>OBSERVACIONES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consolidadoFiltrado.map((r, i) => (
+                    <tr key={i} style={{borderBottom:'1px solid #f9f9f9'}}>
+                      <td style={{padding:'10px'}}>{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td style={{padding:'10px'}}><strong>{r.nombre_sitio}</strong></td>
+                      <td style={{padding:'10px', textAlign:'right', fontWeight:'bold', color: corporativoRed}}>{r.peso_manual} kg</td>
+                      <td style={{padding:'10px', color:'#666', fontSize:'10px'}}>{r.observaciones || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
