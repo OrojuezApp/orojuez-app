@@ -16,9 +16,6 @@ const OroJuezApp = () => {
   const [reportesFiltrados, setReportesFiltrados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [pagina, setPagina] = useState(0);
-  const [hayMas, setHayMas] = useState(true);
-  const [totalGeneral, setTotalGeneral] = useState(0);		
   
   const corporativoRed = "#b30000";
 
@@ -39,54 +36,29 @@ const OroJuezApp = () => {
 
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
-const cargarDatos = async (nuevaPagina = 0) => {
-    if (!user) return;
+const cargarDatos = async () => {
     setLoading(true);
     try {
-      // Cargamos sitios y usuarios (Liviano)
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
       const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
       setSitios(s || []);
       setUsuarios(u || []);
 
-      // 1. CONSULTA DE GRAN TOTAL (Rápida, sin fotos)
-      let sumaQuery = supabase.from('reportes_pesaje').select('peso_manual');
-      if (user?.rol === 'operador') {
-        sumaQuery = sumaQuery.eq('usuario_email', user?.email);
-      }
-      const { data: todosLosPesos } = await sumaQuery;
-      const sumaTotal = todosLosPesos?.reduce((acc, curr) => acc + (Number(curr.peso_manual) || 0), 0) || 0;
-      setTotalGeneral(sumaTotal);
-
-      // 2. CONSULTA DE REGISTROS PAGINADOS (Con fotos, de 50 en 50)
-      const desde = nuevaPagina * 50;
-      const hasta = desde + 49;
-
+      // Iniciamos la consulta de reportes
       let query = supabase
         .from('reportes_pesaje')
-        .select('*', { count: 'exact' })
+        .select('*')
         .order('created_at', { ascending: false })
-        .range(desde, hasta);
+        .limit(150); // <--- LIMITAMOS AQUÍ A 50 REGISTROS
 
+      // Si es operador, filtramos por su email (se mantiene tu lógica)
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
 
-      const { data: r, count, error } = await query;
-      if (error) throw error;
-
-      if (nuevaPagina === 0) {
-        setReportes(r || []);
-        setReportesFiltrados(r || []);
-      } else {
-        const nuevosReportes = [...reportes, ...(r || [])];
-        setReportes(nuevosReportes);
-        setReportesFiltrados(nuevosReportes);
-      }
-
-      setHayMas(desde + (r?.length || 0) < (count || 0));
-      setPagina(nuevaPagina);
-
+      const { data: r } = await query;
+      setReportes(r || []);
+      setReportesFiltrados(r || []);
     } catch (err) { 
       console.error("Error:", err); 
     } finally { 
@@ -363,22 +335,9 @@ const aplicarFiltros = () => {
              </div>
           </div>
         )}
---
-{view === 'historial' && (
-          <div style={{padding:'5px'}}>
-            
-            {/* Tarjetas de Resumen */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginBottom: '15px' }}>
-              <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', borderLeft: `5px solid ${corporativoRed}`, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                <p style={{ fontSize: '10px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', margin: 0 }}>Gran Total Acumulado</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-                  <span style={{ fontSize: '24px', fontWeight: '900', color: '#333' }}>{totalGeneral.toLocaleString()}</span>
-                  <span style={{ fontSize: '14px', color: '#999' }}>KG</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Listado de Reportes */}
+        {view === 'historial' && (
+          <div style={{padding:'5px'}}>
             {reportesFiltrados.map(r => (
               <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'10px', borderLeft:`5px solid ${corporativoRed}`}}>
                 <div style={{textAlign:'left'}}>
@@ -389,35 +348,48 @@ const aplicarFiltros = () => {
                 <button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{background:'none', border:'none', color: corporativoRed}}><ImageIcon size={24}/></button>
               </div>
             ))}
-
-            {/* Botón Cargar Más */}
-            {hayMas && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', marginBottom: '30px' }}>
-                <button
-                  onClick={() => cargarDatos(pagina + 1)}
-                  disabled={loading}
-                  style={{
-                    backgroundColor: 'white',
-                    border: `2px solid ${corporativoRed}`,
-                    color: corporativoRed,
-                    padding: '10px 20px',
-                    borderRadius: '25px',
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.6 : 1
-                  }}
-                >
-                  {loading ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
-                  Ver registros anteriores
-                </button>
-              </div>
-            )}
           </div>
         )}
---
+
+        {/* MODULOS DE ADMIN */}
+        {view === 'usuarios' && (
+          <div style={{padding:'10px'}}>
+            <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
+              <h4 style={{color: corporativoRed}}>{editMode ? 'Editar' : 'Nuevo'} Usuario</h4>
+              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre completo" required />
+              <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email (Usuario)" required disabled={editMode} />
+              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
+              <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})} required>
+                <option value="operador">Operador</option>
+                <option value="administrador">Administrador</option>
+                <option value="auditor">Auditor</option>
+              </select>
+              <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required>
+                <option value="">Sede Asignada...</option>
+                {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>{editMode ? 'ACTUALIZAR' : 'CREAR USUARIO'}</button>
+            </form>
+            <div className="card">
+              <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
+                <thead><tr style={{background:'#f8f8f8'}}><th style={{padding:'8px'}}>Nombre</th><th>Sede</th><th style={{textAlign:'right'}}>Acción</th></tr></thead>
+                <tbody>
+                  {usuarios.map(u => (
+                    <tr key={u.email} style={{borderBottom:'1px solid #eee'}}>
+                      <td style={{padding:'8px'}}><strong>{u.nombre}</strong><br/>{u.rol}</td>
+                      <td>{u.nombre_sitio}</td>
+                      <td style={{textAlign:'right', paddingRight:'10px'}}>
+                        <button onClick={()=>{setNuevoUsuario(u); setEditMode(true);}} style={{color:'blue', border:'none', background:'none', marginRight:'10px'}}><Edit size={14}/></button>
+                        <button onClick={async()=>{if(confirm('¿Eliminar?')){await supabase.from('perfiles_usuarios').delete().eq('email', u.email); cargarDatos();}}} style={{color: corporativoRed, border:'none', background:'none'}}><Trash2 size={14}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {view === 'sedes' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={async(e)=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
