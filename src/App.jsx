@@ -36,7 +36,7 @@ const OroJuezApp = () => {
 
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
-  const cargarDatos = async () => {
+const cargarDatos = async () => {
     setLoading(true);
     try {
       const { data: s } = await supabase.from('sitios').select('*').order('nombre');
@@ -44,15 +44,26 @@ const OroJuezApp = () => {
       setSitios(s || []);
       setUsuarios(u || []);
 
-      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
+      // Iniciamos la consulta de reportes
+      let query = supabase
+        .from('reportes_pesaje')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50); // <--- LIMITAMOS AQUÍ A 50 REGISTROS
+
+      // Si es operador, filtramos por su email (se mantiene tu lógica)
       if (user?.rol === 'operador') {
         query = query.eq('usuario_email', user?.email);
       }
+
       const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
-    } catch (err) { console.error("Error:", err); } 
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error("Error:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
 const aplicarFiltros = () => {
