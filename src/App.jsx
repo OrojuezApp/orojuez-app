@@ -49,7 +49,7 @@ const cargarDatos = async () => {
         .from('reportes_pesaje')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50); // <--- LIMITAMOS AQUÍ A 50 REGISTROS
+        .limit(150); // <--- LIMITAMOS AQUÍ A 50 REGISTROS
 
       // Si es operador, filtramos por su email (se mantiene tu lógica)
       if (user?.rol === 'operador') {
