@@ -3,9 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import './style.css'; 
 import { Camera, LogOut, RefreshCw, Search, Image as ImageIcon, Trash2, Edit, FileText, Download, Users, MapPin, ShieldCheck } from 'lucide-react';
 
-// CREDENCIALES ACTUALIZADAS DEL PROYECTO REAL OROJUEZ
-const SUPABASE_URL = 'https://yvduoxpjkpkfclvunpda.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2ZHVveHBqa3BrZmNsdnVucGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU2NjI1NzYsImV4cCI6MjA1MTIzODU3Nn0.8S-mR2Xm-WzN8_zS6Z_5X8_zS6Z_5X8_zS6Z_5X8_zS';
+const SUPABASE_URL = 'https://khgqeqrnlbhadoarcgul.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_S5Gk22ej_r8hIZw92b16gw_MBOImAJV';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const OroJuezApp = () => {
@@ -17,8 +16,6 @@ const OroJuezApp = () => {
   const [reportesFiltrados, setReportesFiltrados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [reporteConsolidado, setReporteConsolidado] = useState([]);
-  const [consolidadoFiltrado, setConsolidadoFiltrado] = useState([]);
   
   const corporativoRed = "#b30000";
 
@@ -26,8 +23,7 @@ const OroJuezApp = () => {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   
-  // Se ajusta el rol por defecto a 'operativo' según tu esquema de DB
-  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'OPERATIVO', password: '' });
+  const [nuevoUsuario, setNuevoUsuario] = useState({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
   const [nuevoSitio, setNuevoSitio] = useState({ nombre: '', ciudad: '' });
 
   const [photo, setPhoto] = useState(null);
@@ -41,123 +37,60 @@ const OroJuezApp = () => {
   useEffect(() => { if(user) cargarDatos(); }, [user]);
 
   const cargarDatos = async () => {
-    if (!user) return;
     setLoading(true);
     try {
-      // 1. CARGAR SEDES (SITIOS)
-      let querySitios = supabase.from('sitios').select('*').order('nombre');
-      
-      // REQUERIMIENTO: Si no es admin, solo ve el sitio vinculado a su cuenta
-      if (user.rol?.toLowerCase() !== 'admin' && user.sitio_id) {
-        querySitios = querySitios.eq('id', user.sitio_id);
-      }
-      const { data: s, error: errS } = await querySitios;
-      if (errS) throw errS;
+      const { data: s } = await supabase.from('sitios').select('*').order('nombre');
+      const { data: u } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
       setSitios(s || []);
+      setUsuarios(u || []);
 
-      // 2. CARGAR USUARIOS (Solo accesible para Admin)
-      if (user.rol?.toLowerCase() === 'admin') {
-        const { data: u, error: errU } = await supabase.from('perfiles_usuarios').select('*').order('nombre');
-        if (errU) throw errU;
-        setUsuarios(u || []);
+      let query = supabase.from('reportes_pesaje').select('*').order('created_at', { ascending: false });
+      if (user?.rol === 'operador') {
+        query = query.eq('usuario_email', user?.email);
       }
-
-      // 3. CARGAR REPORTES
-      let queryRep = supabase
-        .from('reportes_pesaje')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(150);
-
-      if (user.rol?.toLowerCase() !== 'admin' && user.sitio_id) {
-        queryRep = queryRep.eq('sitio_id', user.sitio_id);
-      }
-
-      const { data: r } = await queryRep;
+      const { data: r } = await query;
       setReportes(r || []);
       setReportesFiltrados(r || []);
-
-    } catch (err) { 
-      console.error("Error cargando datos:", err.message); 
-    } finally { 
-      setLoading(false); 
-    }
-  };
-
-  const cargarReporteConsolidado = async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from('reportes_pesaje')
-        .select('created_at, nombre_sitio, peso_manual, nombre_usuario, observaciones, sitio_id, usuario_email')
-        .order('created_at', { ascending: false });
-
-      if (user.rol?.toLowerCase() !== 'admin' && user.sitio_id) {
-        query = query.eq('sitio_id', user.sitio_id);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setReporteConsolidado(data || []);
-      setConsolidadoFiltrado(data || []);
-      setView('reporte_gerencial'); 
-    } catch (err) {
-      alert("Error cargando reporte: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Error:", err); } 
+    finally { setLoading(false); }
   };
 
   const aplicarFiltros = () => {
     let temp = [...reportes];
     if (filtroSede) {
-      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede));
+      const sedeObj = sitios.find(s => String(s.id) === String(filtroSede));
+      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede) || r.nombre_sitio === sedeObj?.nombre);
     }
-    if (fechaInicio) {
-      const inicio = new Date(fechaInicio + 'T00:00:00');
-      temp = temp.filter(r => new Date(r.created_at) >= inicio);
-    }
-    if (fechaFin) {
-      const fin = new Date(fechaFin + 'T23:59:59');
-      temp = temp.filter(r => new Date(r.created_at) <= fin);
-    }
+    if (fechaInicio) temp = temp.filter(r => r.created_at >= fechaInicio);
+    if (fechaFin) temp = temp.filter(r => r.created_at <= fechaFin + 'T23:59:59');
     setReportesFiltrados(temp);
-  };
-
-  const aplicarFiltrosConsolidado = () => {
-    let temp = [...reporteConsolidado];
-    if (filtroSede) {
-      temp = temp.filter(r => String(r.sitio_id) === String(filtroSede));
-    }
-    if (fechaInicio) {
-      const inicio = new Date(fechaInicio + 'T00:00:00');
-      temp = temp.filter(r => new Date(r.created_at) >= inicio);
-    }
-    if (fechaFin) {
-      const fin = new Date(fechaFin + 'T23:59:59');
-      temp = temp.filter(r => new Date(r.created_at) <= fin);
-    }
-    setConsolidadoFiltrado(temp);
   };
 
   const totalPesos = reportesFiltrados.reduce((sum, r) => sum + (parseFloat(r.peso_manual) || 0), 0);
 
+  // --- FUNCIÓN PARA EXPORTAR A EXCEL (CSV) SIN FOTO ---
   const exportarExcel = () => {
     if (reportesFiltrados.length === 0) return alert("No hay datos para exportar");
+
     const encabezados = ["Fecha", "Hora", "Sede", "Usuario", "Peso (kg)", "Observaciones"];
+    
     const filas = reportesFiltrados.map(r => [
       new Date(r.created_at).toLocaleDateString(),
       new Date(r.created_at).toLocaleTimeString(),
       `"${r.nombre_sitio}"`, 
       `"${r.nombre_usuario}"`,
       r.peso_manual,
-      `"${(r.observaciones || '').replace(/"/g, '""')}"`
+      `"${(r.observaciones || '').replace(/"/g, '""')}"` // Escapar comillas dobles internas
     ]);
+
+    // Añadir BOM para que Excel detecte UTF-8 (acentos y ñ)
     const CSV_IDENTIFIER = "\uFEFF"; 
     let csvContent = CSV_IDENTIFIER + encabezados.join(",") + "\n" 
       + filas.map(e => e.join(",")).join("\n");
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `Reporte_Orojuez_${new Date().toISOString().split('T')[0]}.csv`);
@@ -169,16 +102,7 @@ const OroJuezApp = () => {
   const gestionarUsuario = async (e) => {
     e.preventDefault();
     const sede = sitios.find(s => String(s.id) === String(nuevoUsuario.sitio_id));
-    const payload = { 
-      nombre: nuevoUsuario.nombre,
-      email: nuevoUsuario.email,
-      password: nuevoUsuario.password,
-      rol: nuevoUsuario.rol,
-      sitio_id: nuevoUsuario.sitio_id ? parseInt(nuevoUsuario.sitio_id) : null,
-      nombre_sitio: sede?.nombre || '', 
-      ciudad: sede?.ciudad || '' 
-    };
-
+    const payload = { ...nuevoUsuario, nombre_sitio: sede?.nombre || '', ciudad: sede?.ciudad || '' };
     const { error } = editMode 
       ? await supabase.from('perfiles_usuarios').update(payload).eq('email', nuevoUsuario.email)
       : await supabase.from('perfiles_usuarios').insert([payload]);
@@ -186,7 +110,7 @@ const OroJuezApp = () => {
     if (!error) {
       alert("Usuario guardado");
       setEditMode(false);
-      setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'OPERATIVO', password: '' });
+      setNuevoUsuario({ email: '', nombre: '', sitio_id: '', rol: 'operador', password: '' });
       cargarDatos();
     } else alert(error.message);
   };
@@ -194,9 +118,12 @@ const OroJuezApp = () => {
   const guardarControl = async () => {
     if (!photo || !pesoManual) return alert("Falta foto o peso.");
     setLoading(true);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const cleanId = uuidRegex.test(user.sitio_id) ? user.sitio_id : null;
+
     try {
       const { error } = await supabase.from('reportes_pesaje').insert([{
-        sitio_id: user.sitio_id, 
+        sitio_id: cleanId, 
         nombre_sitio: user.nombre_sitio || 'Sede Principal',
         usuario_email: user.email,
         nombre_usuario: user.nombre,
@@ -216,55 +143,66 @@ const OroJuezApp = () => {
     e.preventDefault();
     const email = e.target.email.value.trim().toLowerCase();
     const password = e.target.password.value.trim();
-    
     if (email === 'industria.orojuez@gmail.com' && password === 'admin123') {
-      setUser({ email, nombre: 'Super Admin', rol: 'admin' }); 
-      setView('dashboard');
+      setUser({ email, nombre: 'Super Admin', rol: 'admin' }); setView('dashboard');
     } else {
-      const { data, error } = await supabase
-        .from('perfiles_usuarios')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
-        
-      if (data) { 
-        setUser(data); 
-        setView('dashboard'); 
-      } else {
-        alert("Credenciales incorrectas");
-      }
+      const { data } = await supabase.from('perfiles_usuarios').select('*').eq('email', email).eq('password', password).single();
+      if (data) { setUser(data); setView('dashboard'); } else alert("Credenciales incorrectas");
     }
   };
 
   if (view === 'login') return (
     <div className="container" style={{padding:'20px', maxWidth:'450px', margin:'auto', textAlign:'center', display:'flex', flexDirection:'column', minHeight:'100vh', justifyContent:'center'}}>
       <div style={{marginBottom:'20px', display:'flex', justifyContent:'center'}}>
-        <img src="https://khgqeqrnlbhadoarcgul.supabase.co/storage/v1/object/public/logos/Logotipo_Orojuez_1.png" alt="LOGO OROJUEZ" style={{width:'220px', height:'auto'}} />
+        <img 
+          src="https://khgqeqrnlbhadoarcgul.supabase.co/storage/v1/object/public/logos/Logotipo_Orojuez_1.png" 
+          alt="LOGO OROJUEZ" 
+          style={{width:'220px', height:'auto'}} 
+          onError={(e) => e.target.src = "https://via.placeholder.com/220x80?text=OROJUEZ+SA"}
+        />
       </div>
       <h1 style={{color: corporativoRed, fontSize:'2.8rem', margin:'0', fontWeight:'bold'}}>OROJUEZ SA.</h1>
       <p style={{fontSize:'1.2rem', color:'#555', marginBottom:'30px'}}>Sistema de Control de Pesos</p>
+      
       <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'15px', background:'white', padding:'25px', borderRadius:'15px', boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
         <input name="email" type="email" placeholder="Usuario / Correo Electrónico" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ddd'}} />
         <input name="password" type="password" placeholder="Contraseña" required style={{padding:'12px', borderRadius:'8px', border:'1px solid #ddd'}} />
         <button style={{backgroundColor: corporativoRed, color:'white', padding:'15px', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', fontSize:'1rem'}}>INICIAR SESIÓN</button>
       </form>
+
+      <div style={{marginTop:'40px', padding:'20px', fontSize:'0.85rem', color:'#888', borderTop:'1px solid #eee'}}>
+        <p>© 2026 Todos los derechos reservados a la empresa Orojuez SA.</p>
+        <p>Soporte técnico: <a href="mailto:sistemas.industria@orojuez.com.ec" style={{color: corporativoRed, textDecoration:'none', fontWeight:'bold'}}>sistemas.industria@orojuez.com.ec</a></p>
+      </div>
     </div>
   );
 
   return (
     <div className="container">
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          .container { width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed; }
+          th, td { border: 1px solid #ddd !important; padding: 4px !important; word-wrap: break-word; vertical-align: middle !important; }
+          .miniatura-reporte { width: 70px !important; height: 70px !important; object-fit: cover !important; }
+          body { background: white !important; font-family: sans-serif; }
+          @page { margin: 1cm; }
+        }
+        .miniatura-reporte { width: 70px; height: 70px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: transform 0.2s; }
+        .miniatura-reporte:hover { transform: scale(1.1); }
+      `}</style>
+
       <div className="navbar no-print" style={{backgroundColor: corporativoRed, display:'flex', justifyContent:'space-between', padding:'10px 20px'}}>
         <span style={{fontSize:'12px', color:'white', fontWeight:'bold'}}>{user?.nombre} | {user?.rol?.toUpperCase()}</span>
         <div style={{display:'flex', gap:'15px'}}>
           <button onClick={cargarDatos} style={{background:'none', border:'none', color:'white'}}><RefreshCw size={18} className={loading?'spin':''}/></button>
-          <button onClick={() => {setUser(null); setView('login');}} style={{color:'white', background:'none', border:'none'}}><LogOut size={18}/></button>
+          <button onClick={() => setView('login')} style={{color:'white', background:'none', border:'none'}}><LogOut size={18}/></button>
         </div>
       </div>
 
       <div className="no-print" style={{display:'flex', gap:'5px', margin:'10px', overflowX:'auto', paddingBottom:'5px'}}>
         <button onClick={() => setView('dashboard')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='dashboard'?`2px solid ${corporativoRed}`:'none'}}>CAPTURA</button>
-        <button onClick={cargarReporteConsolidado} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border: view === 'reporte_gerencial' ? `2px solid ${corporativoRed}` : 'none' }}>COTEJO</button>
         <button onClick={() => setView('historial')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='historial'?`2px solid ${corporativoRed}`:'none'}}>HISTORIAL</button>
         {['admin', 'administrador', 'auditor'].includes(user?.rol?.toLowerCase()) && (
           <button onClick={() => setView('reportes')} className="card" style={{padding:'10px', flex:'1', minWidth:'80px', fontSize:'11px', border:view==='reportes'?`2px solid ${corporativoRed}`:'none'}}>REPORTES</button>
@@ -319,44 +257,90 @@ const OroJuezApp = () => {
                   </select>
                   <button onClick={aplicarFiltros} style={{backgroundColor: corporativoRed, color:'white', border:'none', borderRadius:'5px'}}><Search size={14}/></button>
                 </div>
+                <div style={{display:'flex', gap:'5px', marginTop:'10px'}}>
+                  <button onClick={() => window.print()} className="card" style={{flex:1, background: corporativoRed, color:'white', border:'none', padding:'8px', fontWeight:'bold'}}>PDF / IMPRIMIR</button>
+                  <button onClick={exportarExcel} className="card" style={{flex:1, background: '#1D6F42', color:'white', border:'none', padding:'8px', fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
+                    <Download size={14}/> EXCEL
+                  </button>
+                </div>
              </div>
+
              <div className="card" style={{padding:'5px', overflowX:'auto'}}>
                <table style={{width:'100%', fontSize:'10px', borderCollapse:'collapse', textAlign:'center'}}>
-                  <thead><tr style={{background:'#f2f2f2'}}><th style={{width:'80px'}}>Fecha/Hora</th><th>Sede/Usuario</th><th style={{width:'70px'}}>Peso</th><th style={{width:'85px'}}>Foto</th><th>Obs.</th></tr></thead>
+                  <thead>
+                    <tr style={{background:'#f2f2f2'}}>
+                      <th style={{width:'80px'}}>Fecha/Hora</th>
+                      <th>Sede/Usuario</th>
+                      <th style={{width:'70px'}}>Peso</th>
+                      <th style={{width:'85px'}}>Foto</th>
+                      <th>Obs.</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {reportesFiltrados.map(r => (
                       <tr key={r.id} style={{borderBottom:'1px solid #eee'}}>
-                        <td>{new Date(r.created_at).toLocaleDateString()}<br/><span style={{color: corporativoRed, fontWeight:'bold'}}>{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></td>
+                        <td>
+                          {new Date(r.created_at).toLocaleDateString()}<br/>
+                          <span style={{color: corporativoRed, fontWeight:'bold'}}>{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </td>
                         <td style={{fontSize:'9px'}}>{r.nombre_sitio}<br/><b>{r.nombre_usuario}</b></td>
-                        <td><strong>{r.peso_manual}</strong></td>
-                        <td><img src={r.foto_url} className="miniatura-reporte" alt="min" onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{width:'50px', cursor:'pointer'}}/></td>
+                        <td><strong style={{fontSize:'1.1rem'}}>{r.peso_manual}</strong></td>
+                        <td>
+                          <img 
+                            src={r.foto_url} 
+                            className="miniatura-reporte"
+                            alt="min" 
+                            onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}}
+                          />
+                        </td>
                         <td style={{fontSize:'8px'}}>{r.observaciones || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr style={{background:'#eee', fontWeight:'bold'}}>
+                      <td colSpan="2" style={{padding:'8px', textAlign:'right'}}>TOTAL PESO:</td>
+                      <td colSpan="3" style={{fontSize:'1.1rem', textAlign:'left'}}>{totalPesos.toFixed(2)} kg</td>
+                    </tr>
+                  </tfoot>
                </table>
              </div>
           </div>
         )}
 
+        {view === 'historial' && (
+          <div style={{padding:'5px'}}>
+            {reportesFiltrados.map(r => (
+              <div key={r.id} className="card" style={{display:'flex', justifyContent:'space-between', marginBottom:'8px', padding:'10px', borderLeft:`5px solid ${corporativoRed}`}}>
+                <div style={{textAlign:'left'}}>
+                  <strong>{r.nombre_sitio}</strong><br/>
+                  <span style={{color: corporativoRed, fontWeight:'bold'}}>{r.peso_manual} kg</span><br/>
+                  <small>{new Date(r.created_at).toLocaleString()}</small>
+                </div>
+                <button onClick={()=>{const w=window.open();w.document.write(`<img src="${r.foto_url}" style="width:100%"/>`)}} style={{background:'none', border:'none', color: corporativoRed}}><ImageIcon size={24}/></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* MODULOS DE ADMIN */}
         {view === 'usuarios' && (
           <div style={{padding:'10px'}}>
             <form onSubmit={gestionarUsuario} className="card" style={{padding:'15px', marginBottom:'15px', textAlign:'left'}}>
               <h4 style={{color: corporativoRed}}>{editMode ? 'Editar' : 'Nuevo'} Usuario</h4>
-              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre completo" required style={{width:'100%', marginBottom:'10px', padding:'8px'}} />
-              <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email (Usuario)" required disabled={editMode} style={{width:'100%', marginBottom:'10px', padding:'8px'}} />
-              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required style={{width:'100%', marginBottom:'10px', padding:'8px'}} />
-              <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})} required style={{width:'100%', marginBottom:'10px', padding:'8px'}}>
-                <option value="OPERATIVO">Operador</option>
-                <option value="ADMINISTRADOR">Administrador</option>
-                <option value="AUDITOR">Auditor</option>
+              <input value={nuevoUsuario.nombre} onChange={e=>setNuevoUsuario({...nuevoUsuario, nombre:e.target.value})} placeholder="Nombre completo" required />
+              <input value={nuevoUsuario.email} onChange={e=>setNuevoUsuario({...nuevoUsuario, email:e.target.value})} placeholder="Email (Usuario)" required disabled={editMode} />
+              <input value={nuevoUsuario.password} onChange={e=>setNuevoUsuario({...nuevoUsuario, password:e.target.value})} placeholder="Contraseña" required />
+              <select value={nuevoUsuario.rol} onChange={e=>setNuevoUsuario({...nuevoUsuario, rol:e.target.value})} required>
+                <option value="operador">Operador</option>
+                <option value="administrador">Administrador</option>
+                <option value="auditor">Auditor</option>
               </select>
-              <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required style={{width:'100%', marginBottom:'10px', padding:'8px'}}>
+              <select value={nuevoUsuario.sitio_id} onChange={e=>setNuevoUsuario({...nuevoUsuario, sitio_id:e.target.value})} required>
                 <option value="">Sede Asignada...</option>
                 {sitios.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
-              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>{editMode ? 'ACTUALIZAR' : 'CREAR USUARIO'}</button>
-              {editMode && <button type="button" onClick={()=>{setEditMode(false); setNuevoUsuario({email:'', nombre:'', sitio_id:'', rol:'OPERATIVO', password:''})}} style={{width:'100%', marginTop:'5px', background:'none', border:'none', color:'gray'}}>Cancelar</button>}
+              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>{editMode ? 'ACTUALIZAR' : 'CREAR USUARIO'}</button>
             </form>
             <div className="card">
               <table style={{width:'100%', fontSize:'11px', textAlign:'left'}}>
@@ -382,9 +366,9 @@ const OroJuezApp = () => {
           <div style={{padding:'10px'}}>
             <form onSubmit={async(e)=>{e.preventDefault(); await supabase.from('sitios').insert([nuevoSitio]); setNuevoSitio({nombre:'', ciudad:''}); cargarDatos();}} className="card" style={{padding:'15px', marginBottom:'15px'}}>
               <h4 style={{color: corporativoRed}}>Nueva Sede</h4>
-              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required style={{width:'100%', marginBottom:'10px', padding:'8px'}} />
-              <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required style={{width:'100%', marginBottom:'10px', padding:'8px'}} />
-              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
+              <input value={nuevoSitio.nombre} onChange={e=>setNuevoSitio({...nuevoSitio, nombre:e.target.value})} placeholder="Nombre Sede" required />
+              <input value={nuevoSitio.ciudad} onChange={e=>setNuevoSitio({...nuevoSitio, ciudad:e.target.value})} placeholder="Ciudad" required />
+              <button style={{backgroundColor: corporativoRed, color:'white', width:'100%', padding:'10px', marginTop:'10px', border:'none', borderRadius:'8px', fontWeight:'bold'}}>CREAR SEDE</button>
             </form>
             <div className="card">
               {sitios.map(s => (
